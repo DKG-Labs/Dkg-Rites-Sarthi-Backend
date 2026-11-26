@@ -18,6 +18,8 @@ public class RailSheetingSizingDto {
 
     @NotBlank(message = "Batch Number is mandatory")
     private String batchNo;
+    private String castingDate;
+    private String shift;
 
     @NotBlank(message = "Sheeting status is mandatory")
     private String sheeting;

@@ -3151,6 +3151,15 @@ public class IbsServiceImpl implements IbsService {
             dto.setQuantityPassed(safeQuantity(bestRow[12]));
             dto.setQuantityRejected(safeQuantity(bestRow[13]));
 
+            // Fully rejected call (whole offered qty rejected): IBS gets status R, passed 0, blocked.
+            // Some queries fall back to the offered qty when passed is 0, so passed is forced to 0 here.
+            // Cancelled (C), accepted, partly rejected and diverted calls are unchanged.
+            boolean fullyRejected = isFullyRejected(dto);
+            if (fullyRejected) {
+                dto.setCallStatus("R");
+                dto.setQuantityPassed(0.0);
+            }
+
             dto.setIcFileLink(
                     "https://api.ritesqasarthi.com"
                             + "/sarthi-backend/api/certificate-storage/view/"
@@ -3195,7 +3204,7 @@ public class IbsServiceImpl implements IbsService {
             dto.setCancellationCharges(cancelCharges);
             dto.setRejectionCharges(rejectCharges);
 
-            if (cancelCharges > 0.0 || rejectCharges > 0.0) {
+            if (fullyRejected || cancelCharges > 0.0 || rejectCharges > 0.0) {
                 dto.setIsBlocked(1);
             } else {
                 dto.setIsBlocked(0);
@@ -3208,6 +3217,14 @@ public class IbsServiceImpl implements IbsService {
             enrichRailpadDiversion(list);
         }
         return list;
+    }
+
+    /** Whole offered quantity rejected (offered > 0, rejected >= offered) and the call is not cancelled. */
+    private static boolean isFullyRejected(IbsInspectionDto dto) {
+        if ("C".equalsIgnoreCase(dto.getCallStatus())) return false;
+        Double offered = dto.getQuantityOffered();
+        Double rejected = dto.getQuantityRejected();
+        return offered != null && rejected != null && offered > 0 && rejected >= offered - 0.0005;
     }
 
     /** Rail Pad material diversion: diverted-passed ICs carry diversionType (PARTIAL / COMPLETE) to IBS. One bulk lookup. */

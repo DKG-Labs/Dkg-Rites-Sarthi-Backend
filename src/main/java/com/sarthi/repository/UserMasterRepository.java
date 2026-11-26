@@ -105,6 +105,11 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
     @Query("SELECT u.employeeCode FROM UserMaster u WHERE u.userId = :userId")
     String findEmployeeCodeByUserId(Integer userId);
 
+    /** Highest serial already used by MPA codes M + mmyy + serial (null when none). */
+    @Query(value = "SELECT MAX(CAST(SUBSTRING(EMPLOYEE_CODE, 6) AS UNSIGNED)) FROM user_master " +
+            "WHERE EMPLOYEE_CODE REGEXP CONCAT('^M', :mmyy, '[0-9]{2}$')", nativeQuery = true)
+    Long findMaxMpaSerial(@org.springframework.data.repository.query.Param("mmyy") String mmyy);
+
     @Query("""
             select rm.roleName
             from UserRoleMaster urm

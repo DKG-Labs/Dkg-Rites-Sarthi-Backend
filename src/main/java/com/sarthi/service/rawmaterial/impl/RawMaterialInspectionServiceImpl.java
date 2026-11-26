@@ -194,7 +194,9 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                 List<String> callNos = allIcs.stream()
                                 .map((RmIcCertWithDateDto dto) -> extractCallNoFromCert(dto.getCertificateNo()))
                                 .collect(Collectors.toList());
-                List<String> divertedCallNos = ercDiversionRequestRepository.findDivertedSourceIcNos(callNos);
+                // only COMPLETE diversions remove the RM IC; after a PARTIAL one the rest of the material is still
+                // on this PO serial and can be offered in a fresh Process call (e.g. ER-1024260001 → ER-26111801)
+                List<String> divertedCallNos = ercDiversionRequestRepository.findCompletelyDivertedSourceIcNos(callNos);
 
                 if (!divertedCallNos.isEmpty()) {
                         logger.info("Excluding {} diverted RM IC(s): {}", divertedCallNos.size(), divertedCallNos);
@@ -255,6 +257,39 @@ public class RawMaterialInspectionServiceImpl implements RawMaterialInspectionSe
                         }
                 }
                 return dtos;
+        }
+
+        /**
+         * Heats of an RM IC for a fresh Process call on the SOURCE PO serial: accepted weight minus the quantity
+         * diverted to other PO serials. Only the vendor's Process call form uses this; diversion screens, IE views and
+         * inventory keep the plain list (the diversion screen does its own deduction).
+         */
+        @Override
+        public List<RmHeatQuantityDto> getHeatNumbersByRmIcNumberExcludingDiverted(String erNumber) {
+                List<RmHeatQuantityDto> dtos = getHeatNumbersByRmIcNumber(erNumber);
+                // a diversion call's own heats are already the diverted quantity: nothing to deduct
+                if (ercDiversionRequestRepository.findByRequestNo(erNumber).isPresent()) return dtos;
+                deductDivertedQty(erNumber, dtos);
+                return dtos;
+        }
+
+        /** Accepted weight per heat minus the quantity diverted out of this call (one query; no-op without diversions). */
+        private void deductDivertedQty(String callNo, List<RmHeatQuantityDto> dtos) {
+                if (dtos == null || dtos.isEmpty()) return;
+                Map<String, Double> diverted = new java.util.HashMap<>();
+                for (Object[] r : ercDiversionRequestRepository.sumDivertedQtyByHeatForSourceCall(callNo.trim())) {
+                        if (r[0] == null || r[1] == null) continue;
+                        diverted.put(r[0].toString(), ((Number) r[1]).doubleValue());
+                }
+                if (diverted.isEmpty()) return;
+                for (RmHeatQuantityDto d : dtos) {
+                        if (d.getHeatNumber() == null || d.getWeightAcceptedMt() == null) continue;
+                        Double out = diverted.get(d.getHeatNumber().trim().toUpperCase());
+                        if (out == null || out <= 0) continue;
+                        double left = Math.max(0.0, d.getWeightAcceptedMt() - out);
+                        d.setWeightAcceptedMt(Math.round(left * 1000.0) / 1000.0);   // MT, 3 decimals
+                }
+                logger.info("Deducted diverted qty for {} on heats {}", callNo, diverted.keySet());
         }
 
         /** Diverted heats of a diversion RM call, read from its source call at the diverted qty; null if not a diversion. */

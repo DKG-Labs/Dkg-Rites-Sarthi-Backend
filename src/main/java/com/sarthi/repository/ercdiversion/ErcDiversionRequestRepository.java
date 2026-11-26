@@ -84,6 +84,36 @@ public interface ErcDiversionRequestRepository extends JpaRepository<ErcDiversio
            "com.sarthi.enums.DiversionRequestStatus.DELETED_BY_VENDOR)")
     List<String> findDivertedSourceIcNos(@Param("icNumbers") List<String> icNumbers);
 
+    /**
+     * Source ICs whose material was diverted COMPLETELY (same statuses as above). A PARTIAL diversion leaves
+     * material on the source PO serial, so its source IC must stay available for fresh Process calls.
+     */
+    @Query("SELECT DISTINCT r.sourceIcNo FROM ErcDiversionRequest r " +
+           "WHERE r.sourceIcNo IN :icNumbers " +
+           "AND r.diversionType = com.sarthi.enums.DiversionType.COMPLETE " +
+           "AND r.status NOT IN (" +
+           "com.sarthi.enums.DiversionRequestStatus.DRAFT, " +
+           "com.sarthi.enums.DiversionRequestStatus.CM_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.SBU_HEAD_RETURN_DIVERSION, " +
+           "com.sarthi.enums.DiversionRequestStatus.RETURNED_TO_VENDOR, " +
+           "com.sarthi.enums.DiversionRequestStatus.DELETED_BY_VENDOR)")
+    List<String> findCompletelyDivertedSourceIcNos(@Param("icNumbers") List<String> icNumbers);
+
+    /**
+     * Quantity diverted out of a source RM call, per heat: [UPPER(heat_no), SUM(diversion_qty)].
+     * Same statuses as above (returned / draft / deleted requests do not count). One query per call.
+     */
+    @Query(value = "SELECT UPPER(TRIM(i.heat_no)) AS heat, SUM(COALESCE(i.diversion_qty, 0)) AS qty " +
+           "FROM erc_material_diversion_item i " +
+           "JOIN erc_material_diversion_request r ON r.id = i.diversion_request_id " +
+           "WHERE (r.source_call_no = :callNo OR r.source_ic_no = :callNo " +
+           "       OR r.source_ic_no LIKE CONCAT('%/', :callNo, '/%')) " +
+           "AND r.status NOT IN ('DRAFT', 'CM_RETURN_DIVERSION', 'SBU_HEAD_RETURN_DIVERSION', " +
+           "                     'RETURNED_TO_VENDOR', 'DELETED_BY_VENDOR') " +
+           "AND i.heat_no IS NOT NULL " +
+           "GROUP BY UPPER(TRIM(i.heat_no))", nativeQuery = true)
+    List<Object[]> sumDivertedQtyByHeatForSourceCall(@Param("callNo") String callNo);
+
     @Query("SELECT r.railwayPermissionDocUrl FROM ErcDiversionRequest r WHERE r.id = :id")
     Optional<String> findRailwayDocUrlById(@Param("id") Long id);
 
