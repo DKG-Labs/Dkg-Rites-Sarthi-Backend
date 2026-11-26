@@ -19,11 +19,8 @@ public class RailRheometerTestServiceImpl implements RailRheometerTestService {
     private RailRheometerTestRepository repository;
 
     @Override
-    public RailRheometerTestDto createRheometerTest(RailRheometerTestDto dto) {
-        Optional<RailRheometerTest> existing = repository.findByBatchNoAndPlantIdAndVendorCode(dto.getBatchNo(), dto.getPlantId(), dto.getVendorCode());
-        if (existing.isPresent()) {
-            throw new RuntimeException("A record with this Batch Number already exists for the given Plant and Vendor.");
-        }
+    public synchronized RailRheometerTestDto createRheometerTest(RailRheometerTestDto dto) {
+        rejectDuplicate(dto, null);
 
         RailRheometerTest entity = new RailRheometerTest();
         BeanUtils.copyProperties(dto, entity);
@@ -35,14 +32,15 @@ public class RailRheometerTestServiceImpl implements RailRheometerTestService {
     }
 
     @Override
-    public RailRheometerTestDto updateRheometerTest(Long id, RailRheometerTestDto dto) {
+    public synchronized RailRheometerTestDto updateRheometerTest(Long id, RailRheometerTestDto dto) {
         RailRheometerTest entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Record not found with ID: " + id));
-
-        Optional<RailRheometerTest> existing = repository.findByBatchNoAndPlantIdAndVendorCode(dto.getBatchNo(), dto.getPlantId(), dto.getVendorCode());
-        if (existing.isPresent() && !existing.get().getId().equals(id)) {
-            throw new RuntimeException("A record with this Batch Number already exists for the given Plant and Vendor.");
-        }
+        // an edit changes the values, never which day / shift / plant the check belongs to
+        dto.setCastingDate(entity.getCastingDate());
+        dto.setShift(entity.getShift());
+        dto.setPlantId(entity.getPlantId());
+        dto.setVendorCode(entity.getVendorCode());
+        rejectDuplicate(dto, id);
 
         entity.setBatchNo(dto.getBatchNo());
         entity.setVulcanTime(dto.getVulcanTime());
@@ -107,5 +105,25 @@ public class RailRheometerTestServiceImpl implements RailRheometerTestService {
                     BeanUtils.copyProperties(entity, dto);
                     return dto;
                 }).collect(Collectors.toList());
+    }
+
+    /**
+     * Same batch number at the plant is a duplicate only within the same date and shift. Plants restart batch numbers,
+     * so a recycled number on another day is a new check. Rows without date / shift never block.
+     */
+    private void rejectDuplicate(RailRheometerTestDto dto, Long excludeId) {
+        String batch = dto.getBatchNo() == null ? "" : dto.getBatchNo().trim();
+        if (batch.isEmpty()) throw new RuntimeException("Batch Number is required.");
+        dto.setBatchNo(batch);
+        String date = dto.getCastingDate() == null ? "" : dto.getCastingDate().trim();
+        String shift = dto.getShift() == null ? "" : dto.getShift().trim();
+        if (date.isEmpty()) return;   // no date sent: no duplicate rule
+        String plant = dto.getPlantId() == null ? "" : dto.getPlantId().trim();
+        String bare = plant.startsWith(":") ? plant.substring(1) : plant;
+        if (!repository.findSameBatchDateShift(java.util.List.of(bare, ":" + bare), dto.getVendorCode(), batch.toUpperCase(),
+                date, shift.toUpperCase(), excludeId).isEmpty()) {
+            throw new RuntimeException("Batch " + batch + " is already entered for " + date
+                    + (shift.isEmpty() ? "" : ", Shift " + shift) + ". Edit that entry instead of adding it again.");
+        }
     }
 }

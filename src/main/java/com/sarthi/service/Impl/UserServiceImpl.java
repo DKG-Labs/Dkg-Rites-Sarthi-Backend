@@ -118,6 +118,21 @@ public class UserServiceImpl implements UserService {
 
 
 
+    /** MPA user ID: M + mmyy of date of birth + 2-digit serial, continuous within that mmyy (M039501, M039502, ...). */
+    private synchronized String nextMpaEmployeeCode(String dateOfBirth) {
+        java.time.LocalDate dob;
+        try {
+            dob = java.time.LocalDate.parse(dateOfBirth == null ? "" : dateOfBirth.trim().substring(0, Math.min(10, dateOfBirth.trim().length())));
+        } catch (Exception e) {
+            throw new BusinessException(new ErrorDetails(AppConstant.ERROR_CODE_RESOURCE,
+                    AppConstant.ERROR_TYPE_CODE_VALIDATION, AppConstant.ERROR_TYPE_VALIDATION,
+                    "Date of Birth is required to generate the MPA user ID."));
+        }
+        String mmyy = String.format("%02d%02d", dob.getMonthValue(), dob.getYear() % 100);
+        Long max = userMasterRepository.findMaxMpaSerial(mmyy);
+        return "M" + mmyy + String.format("%02d", (max == null ? 0 : max) + 1);
+    }
+
     @Transactional
     @Override
     public UserDto createUser(userRequestDto userDto) {
@@ -154,6 +169,8 @@ public class UserServiceImpl implements UserService {
                 if (userDto.getEmployeeCode() != null && !userDto.getEmployeeCode().trim().isEmpty()) {
                     userMaster.setEmployeeCode(userDto.getEmployeeCode());
                 }
+            } else if ("MPA".equalsIgnoreCase(userDto.getEmploymentType())) {
+                userMaster.setEmployeeCode(nextMpaEmployeeCode(userDto.getDateOfBirth()));
             } else {
                 userMaster.setEmployeeCode(userDto.getEmployeeCode());
             }

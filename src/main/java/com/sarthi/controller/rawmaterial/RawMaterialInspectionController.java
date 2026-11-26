@@ -170,9 +170,14 @@ public class RawMaterialInspectionController {
      */
     @GetMapping("/heats-by-rm-ic/{rmIcNumber}")
     @Operation(summary = "Get heat numbers by RM IC", description = "Fetches heat numbers from rm_heat_quantities table for a specific RM IC number")
-    public ResponseEntity<APIResponse> getHeatNumbersByRmIcNumber(@PathVariable String rmIcNumber) {
-        logger.info("Request: Get heat numbers for RM IC: {}", rmIcNumber);
-        List<RmHeatQuantityDto> heatNumbers = rmService.getHeatNumbersByRmIcNumber(rmIcNumber);
+    public ResponseEntity<APIResponse> getHeatNumbersByRmIcNumber(
+            @PathVariable String rmIcNumber,
+            // true only from the vendor's fresh Process call form: accepted minus qty diverted to other PO serials
+            @RequestParam(defaultValue = "false") boolean excludeDiverted) {
+        logger.info("Request: Get heat numbers for RM IC: {} (excludeDiverted={})", rmIcNumber, excludeDiverted);
+        List<RmHeatQuantityDto> heatNumbers = excludeDiverted
+                ? rmService.getHeatNumbersByRmIcNumberExcludingDiverted(rmIcNumber)
+                : rmService.getHeatNumbersByRmIcNumber(rmIcNumber);
         return new ResponseEntity<>(ResponseBuilder.getSuccessResponse(heatNumbers), HttpStatus.OK);
     }
 

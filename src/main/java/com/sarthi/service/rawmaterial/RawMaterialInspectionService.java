@@ -106,6 +106,9 @@ public interface RawMaterialInspectionService {
      */
     List<RmHeatQuantityDto> getHeatNumbersByRmIcNumber(String rmIcNumber);
 
+    /** Same as getHeatNumbersByRmIcNumber, minus the quantity diverted to other PO serials (fresh Process call). */
+    List<RmHeatQuantityDto> getHeatNumbersByRmIcNumberExcludingDiverted(String erNumber);
+
     /**
      * Get inspection call details by certificate number
      * Maps certificate number from inspection_complete_details to IC number, then

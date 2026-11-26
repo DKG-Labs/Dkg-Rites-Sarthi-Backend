@@ -19,6 +19,8 @@ public class RailRheometerTestDto {
 
     @NotBlank(message = "Batch Number is mandatory")
     private String batchNo;
+    private String castingDate;
+    private String shift;
 
     @NotNull(message = "Vulcanization Time is mandatory")
     private Double vulcanTime;

@@ -23,6 +23,13 @@ public class RailRheometerTest {
     @Column(name = "batch_no", length = 100, nullable = false)
     private String batchNo;
 
+    // date + shift of the check (duplicate rule: same batch + date + shift at the plant)
+    @Column(name = "casting_date", length = 50)
+    private String castingDate;
+
+    @Column(name = "shift", length = 50)
+    private String shift;
+
     @Column(name = "vulcan_time", nullable = false)
     private Double vulcanTime;
 
