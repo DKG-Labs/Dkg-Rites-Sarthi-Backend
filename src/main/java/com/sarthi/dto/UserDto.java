@@ -21,6 +21,7 @@ public class UserDto {
     private String designation;
     private String discipline;
     private String employmentType;
+    private String companyCode;
     private String dateOfBirth;
     private String rio;
     private String email;

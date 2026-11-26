@@ -189,6 +189,9 @@ public class UserServiceImpl implements UserService {
 
         userMaster.setRitesEmployeeCode(userDto.getRitesEmployeeCode());
         userMaster.setEmploymentType(userDto.getEmploymentType());
+        userMaster.setCompanyCode("MPA".equalsIgnoreCase(userDto.getEmploymentType())
+                ? (userDto.getCompanyCode() == null || userDto.getCompanyCode().isBlank() ? userMaster.getCompanyCode() : userDto.getCompanyCode().trim())
+                : userMaster.getEmployeeCode());
         userMaster.setFullName(userDto.getFullName());
         userMaster.setDesignation(userDto.getDesignation());
         userMaster.setDiscipline(userDto.getDiscipline());
@@ -653,6 +656,7 @@ public class UserServiceImpl implements UserService {
         userDto.setDesignation(userMaster.getDesignation());
         userDto.setDiscipline(userMaster.getDiscipline());
         userDto.setEmploymentType(userMaster.getEmploymentType());
+        userDto.setCompanyCode(userMaster.getCompanyCode());
         userDto.setDateOfBirth(userMaster.getDateOfBirth());
         userDto.setEmail(userMaster.getEmail());
         userDto.setAlternateMobileNumber(userMaster.getAlternateMobileNumber());
@@ -1224,6 +1228,9 @@ public class UserServiceImpl implements UserService {
         userMaster.setEmployeeCode(userDto.getEmployeeCode());
         userMaster.setRitesEmployeeCode(userDto.getRitesEmployeeCode());
         userMaster.setEmploymentType(userDto.getEmploymentType());
+        userMaster.setCompanyCode("MPA".equalsIgnoreCase(userDto.getEmploymentType())
+                ? (userDto.getCompanyCode() == null || userDto.getCompanyCode().isBlank() ? userMaster.getCompanyCode() : userDto.getCompanyCode().trim())
+                : userMaster.getEmployeeCode());
         userMaster.setFullName(userDto.getFullName());
         userMaster.setShortName(userDto.getShortName());
         userMaster.setDesignation(userDto.getDesignation());
