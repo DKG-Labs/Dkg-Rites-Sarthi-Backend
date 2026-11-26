@@ -79,6 +79,7 @@ public class NdtServiceImpl implements NdtService {
 
         // Generate duty ID and other details
         LocalDate date = RailMillCommonUtils.convertStringToDateObject(req.getStartDate());
+        com.sarthi.Sms.util.RailMillDutyRules.validate(date, req.getShift(), req.getOrganisation(), req.getMill());
         String dutyId = dutySequenceService.generateDutyId(DutyEnum.NDT, date);
         ndtDutyEntity.setDutyId(dutyId);
         ndtDutyEntity.setUserId(userId);
@@ -88,6 +89,7 @@ public class NdtServiceImpl implements NdtService {
         ndtDutyEntity.setRailGrade(req.getRailGrade());
         ndtDutyEntity.setShift(req.getShift());
         ndtDutyEntity.setMill(req.getMill());
+        ndtDutyEntity.setOrganisation(req.getOrganisation().trim().toUpperCase());
         ndtDutyEntity.setRailSection(req.getRailSection());
 
         // Save duty in the database
@@ -102,6 +104,7 @@ public class NdtServiceImpl implements NdtService {
         startDutyResDto.setRailGrade(ndtDutyEntity.getRailGrade());
         startDutyResDto.setRailSection(ndtDutyEntity.getRailSection());
         startDutyResDto.setMill(ndtDutyEntity.getMill());
+        startDutyResDto.setOrganisation(ndtDutyEntity.getOrganisation());
         startDutyResDto.setDate(RailMillCommonUtils.convertDateToString(ndtDutyEntity.getDate()));
         return startDutyResDto;
     }
@@ -211,6 +214,7 @@ public class NdtServiceImpl implements NdtService {
             sdrd.setShift(rde.getShift());
             sdrd.setDate(RailMillCommonUtils.convertDateToString(rde.getDate()));
             sdrd.setMill(rde.getMill());
+            sdrd.setOrganisation(rde.getOrganisation());
             sdrd.setRailGrade(rde.getRailGrade());
             sdrd.setRailSection(rde.getRailSection());
             sdrd.setNdt(rde.getNdt());

@@ -12,6 +12,7 @@ public class StartDutyResDto {
     private String shift;
     private String dutyId;
     private String mill;
+    private String organisation;
     private String railSection;
     private String railGrade;
     private String ndt;
