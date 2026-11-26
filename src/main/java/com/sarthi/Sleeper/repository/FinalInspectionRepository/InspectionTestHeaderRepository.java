@@ -1428,17 +1428,26 @@ ORDER BY defect_count DESC
             """, nativeQuery = true)
     List<Object[]> getSleeperCategoryByPdIds(@Param("pdIds") java.util.Collection<Long> pdIds);
 
-    /** Final-inspection rejections per batch by defect group: dimension, end damage, honeycomb/surface/crack, dowel, other. */
+    /** Final-inspection rejections per batch by defect group: dimension, end damage, honeycomb/surface/crack, dowel, insert sink/tilt, SBT, NFTC, any other. */
     @Query(value = """
             SELECT t.batch_id AS pd_id,
                    COUNT(DISTINCT CASE WHEN t.grp = 1 THEN t.sleeper_id END) AS dimension_toe_gauge,
                    COUNT(DISTINCT CASE WHEN t.grp = 2 THEN t.sleeper_id END) AS end_damage,
                    COUNT(DISTINCT CASE WHEN t.grp = 3 THEN t.sleeper_id END) AS honeycomb_surface_crack,
                    COUNT(DISTINCT CASE WHEN t.grp = 4 THEN t.sleeper_id END) AS missing_dowel,
-                   COUNT(DISTINCT CASE WHEN t.grp = 5 THEN t.sleeper_id END) AS other_defects
+                   COUNT(DISTINCT CASE WHEN t.grp = 5 THEN t.sleeper_id END) AS other_defects,
+                   COUNT(DISTINCT CASE WHEN t.grp = 6 THEN t.sleeper_id END) AS sbt,
+                   COUNT(DISTINCT CASE WHEN t.grp = 7 THEN t.sleeper_id END) AS nftc,
+                   COUNT(DISTINCT CASE WHEN t.grp = 8 THEN t.sleeper_id END) AS any_other_defect
             FROM (
                 SELECT ith.batch_id, itr.sleeper_id,
                        CASE
+                         WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%sbt%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%static bend%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%moment of%' THEN 6
+                         WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%nftc%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%ftc%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%track circuit%' THEN 7
                          WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%dowel%' THEN 4
                          WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%end damage%' THEN 2
                          WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%honey%'
@@ -1456,7 +1465,10 @@ ORDER BY defect_count DESC
                            OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%slope%'
                            OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%twist%'
                            OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%camber%' THEN 1
-                         ELSE 5
+                         WHEN LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%insert%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%sink%'
+                           OR LOWER(COALESCE(itr.rejection_reason, '')) LIKE '%tilt%' THEN 5
+                         ELSE 8
                        END AS grp
                 FROM inspection_test_header ith
                 JOIN inspection_test_result itr ON itr.test_header_id = ith.id
@@ -1489,7 +1501,7 @@ ORDER BY defect_count DESC
 
     /**
      * Sleepers rejected on the IC itself per call, by defect group (same grouping as getFinalDefectCountsByPdIds):
-     * dimension, end damage, honeycomb/surface/crack, dowel, other.
+     * dimension, end damage, honeycomb/surface/crack, dowel, insert sink/tilt, SBT, NFTC, any other.
      */
     @Query(value = """
             SELECT t.call_no,
@@ -1497,12 +1509,21 @@ ORDER BY defect_count DESC
                    COUNT(DISTINCT CASE WHEN t.grp = 2 THEN t.sk END) AS end_damage,
                    COUNT(DISTINCT CASE WHEN t.grp = 3 THEN t.sk END) AS honeycomb_surface_crack,
                    COUNT(DISTINCT CASE WHEN t.grp = 4 THEN t.sk END) AS missing_dowel,
-                   COUNT(DISTINCT CASE WHEN t.grp = 5 THEN t.sk END) AS other_defects
+                   COUNT(DISTINCT CASE WHEN t.grp = 5 THEN t.sk END) AS other_defects,
+                   COUNT(DISTINCT CASE WHEN t.grp = 6 THEN t.sk END) AS sbt,
+                   COUNT(DISTINCT CASE WHEN t.grp = 7 THEN t.sk END) AS nftc,
+                   COUNT(DISTINCT CASE WHEN t.grp = 8 THEN t.sk END) AS any_other_defect
             FROM (
                 SELECT TRIM(ibs.call_no) AS call_no,
                        CONCAT(CONVERT(TRIM(ibs.batch_no) USING utf8mb4) COLLATE utf8mb4_unicode_ci, '|',
                               CONVERT(COALESCE(frs.sleeper_code, CAST(frs.sleeper_id AS CHAR)) USING utf8mb4) COLLATE utf8mb4_unicode_ci) AS sk,
                        CASE
+                         WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%sbt%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%static bend%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%moment of%' THEN 6
+                         WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%nftc%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%ftc%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%track circuit%' THEN 7
                          WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%dowel%' THEN 4
                          WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%end damage%' THEN 2
                          WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%honey%'
@@ -1520,7 +1541,10 @@ ORDER BY defect_count DESC
                            OR LOWER(COALESCE(frs.reason, '')) LIKE '%slope%'
                            OR LOWER(COALESCE(frs.reason, '')) LIKE '%twist%'
                            OR LOWER(COALESCE(frs.reason, '')) LIKE '%camber%' THEN 1
-                         ELSE 5
+                         WHEN LOWER(COALESCE(frs.reason, '')) LIKE '%insert%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%sink%'
+                           OR LOWER(COALESCE(frs.reason, '')) LIKE '%tilt%' THEN 5
+                         ELSE 8
                        END AS grp
                 FROM final_call_rejected_sleepers frs
                 JOIN ie_batch_summary ibs ON ibs.id = frs.batch_id

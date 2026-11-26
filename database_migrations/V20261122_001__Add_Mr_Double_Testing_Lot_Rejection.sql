@@ -50,7 +50,8 @@ JOIN production_declaration pd
 SET m.production_declaration_id = pd.id
 WHERE m.production_declaration_id IS NULL
   AND m.remarks LIKE '%[DeclId:%'
-  AND UPPER(TRIM(pd.batch_number)) = UPPER(TRIM(m.batch_number));
+  AND CONVERT(UPPER(TRIM(pd.batch_number)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+    = CONVERT(UPPER(TRIM(m.batch_number)) USING utf8mb4) COLLATE utf8mb4_unicode_ci;
 
 -- The MR page writes "Declared for MR <type> Testing (...)" into remarks when a sample is declared.
 -- The application never stored mr_test_type before this change, so an existing 'Fresh' is only the column default

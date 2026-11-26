@@ -835,6 +835,33 @@ AND t.workflowTransitionId = (
             @Param("limitCalls") int limitCalls,
             @Param("callNos") java.util.Collection<String> callNos);
 
+    /**
+     * Monthly Analysis of Units: plants (vendor_plant.plant_id) with at least one final IC issued in the range.
+     * "Issued" and the IC date are defined exactly as in findSleeperDownloadIcAnnexuresReportRaw, so the plants
+     * listed match the Download IC &amp; Annexures report for the same dates.
+     */
+    @Query(value = """
+        SELECT DISTINCT vp.plant_id
+        FROM sleeper_workflow_transaction swt
+        INNER JOIN (
+            SELECT request_id, MAX(workflow_transition_id) AS max_id
+            FROM sleeper_workflow_transaction
+            WHERE workflow_id = 2
+            GROUP BY request_id
+        ) latest ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(latest.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci AND swt.workflow_transition_id = latest.max_id
+        INNER JOIN sleeper_inspection_call sic ON CONVERT(swt.request_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        INNER JOIN vendor_plant vp ON (CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sic.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci
+            OR CONVERT(vp.plant_id USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(REPLACE(sic.plant_id, ':', '') USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        LEFT JOIN sleeper_inspection_complete_details sicd ON CONVERT(sic.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(sicd.call_no USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        LEFT JOIN (SELECT CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci AS ic_no, MAX(created_at) AS ic_dt FROM sleeper_final_ic_edit GROUP BY CONVERT(TRIM(ic_number) USING utf8mb4) COLLATE utf8mb4_unicode_ci) sfied ON sfied.ic_no = CONVERT(TRIM(COALESCE(sicd.certificate_no, sic.call_no)) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        WHERE swt.workflow_id = 2
+          AND UPPER(COALESCE(swt.status, '')) = 'SEND_CALL_TO_IBS'
+          AND DATE(COALESCE(sfied.ic_dt, sicd.created_on, swt.created_date)) BETWEEN :startDate AND :endDate
+    """, nativeQuery = true)
+    List<String> findPlantIdsWithFinalIcIssued(
+            @Param("startDate") java.time.LocalDate startDate,
+            @Param("endDate") java.time.LocalDate endDate);
+
         /** Lean variant of countSleeperIcIssuedFiltered for when no vendor/zone filter is set: skips the slow vendor_plant/po_header OR-joins, which cannot change a COUNT DISTINCT. */
     @Query(value = """
         SELECT COUNT(DISTINCT swt.request_id)
