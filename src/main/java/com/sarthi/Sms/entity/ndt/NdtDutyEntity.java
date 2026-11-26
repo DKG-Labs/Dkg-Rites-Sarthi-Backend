@@ -30,6 +30,9 @@ public class NdtDutyEntity {
     @Column(name = "mill", nullable = false, length = 10)
     private String mill;
 
+    @Column(name = "organisation", length = 20)
+    private String organisation;
+
     @Column(name = "ndt", nullable = false, length = 50)
     private String ndt;
 

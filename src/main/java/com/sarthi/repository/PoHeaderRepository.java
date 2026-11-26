@@ -333,4 +333,14 @@ AND UPPER(p.itemCatDescr) = 'ELASTIC RAIL CLIPS'
     """, nativeQuery = true)
 	String findRlyShortNameByVendorCode(@Param("vendorCode") String vendorCode);
 
+    /** PO item rates for many cases in one query: [case_no, item_sr_no, rate, value, basic_value, qty]. */
+    @Query(value = """
+    SELECT h.case_no, i.item_sr_no, i.rate, i.value, i.basic_value, i.qty
+    FROM po_item i
+    JOIN po_header h ON h.id = i.po_header_id
+    WHERE h.case_no IN (:caseNos)
+    ORDER BY h.id DESC, i.id
+    """, nativeQuery = true)
+    List<Object[]> findItemRatesByCaseNos(@Param("caseNos") java.util.Collection<String> caseNos);
+
 }

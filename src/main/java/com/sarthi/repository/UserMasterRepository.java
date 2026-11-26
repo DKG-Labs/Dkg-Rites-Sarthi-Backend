@@ -68,7 +68,8 @@ public interface UserMasterRepository extends JpaRepository<UserMaster, Integer>
             um.UPDATEDBY,
             um.UPDATEDDATE,
             um.LAST_LOGIN_DATE,
-            um.controlling_manager_id
+            um.controlling_manager_id,
+            um.COMPANY_CODE
         FROM USER_MASTER um
     """, nativeQuery = true)
     java.util.List<UserMaster> findAllUsersOptimized();

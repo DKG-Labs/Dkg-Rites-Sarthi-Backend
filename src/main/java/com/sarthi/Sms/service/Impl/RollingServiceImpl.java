@@ -165,6 +165,8 @@ public class RollingServiceImpl implements RollingService {
         }
 
         LocalDate date = RailMillCommonUtils.convertStringToDateObject(startDutyReqDto.getStartDate());
+        com.sarthi.Sms.util.RailMillDutyRules.validate(date, startDutyReqDto.getShift(),
+                startDutyReqDto.getOrganisation(), startDutyReqDto.getMill());
 
         String dutyId = dutySequenceService.generateDutyId(DutyEnum.ROLLING, date);
 
@@ -173,6 +175,7 @@ public class RollingServiceImpl implements RollingService {
         rollingDutyEntity.setDate(date);
         rollingDutyEntity.setShift(startDutyReqDto.getShift());
         rollingDutyEntity.setMill(startDutyReqDto.getMill());
+        rollingDutyEntity.setOrganisation(startDutyReqDto.getOrganisation().trim().toUpperCase());
         rollingDutyEntity.setRailGrade(startDutyReqDto.getRailGrade());
         rollingDutyEntity.setRailSection(startDutyReqDto.getRailSection());
         rollingDutyEntity.setStartTime(LocalDateTime.now());
@@ -183,6 +186,7 @@ public class RollingServiceImpl implements RollingService {
         startDutyResDto.setDutyId(rollingDutyEntity.getDutyId());
         startDutyResDto.setShift(rollingDutyEntity.getShift());
         startDutyResDto.setMill(rollingDutyEntity.getMill());
+        startDutyResDto.setOrganisation(rollingDutyEntity.getOrganisation());
         startDutyResDto.setStartTime(RailMillCommonUtils.extractTime(rollingDutyEntity.getStartTime()));
         startDutyResDto.setRailGrade(rollingDutyEntity.getRailGrade());
         startDutyResDto.setRailSection(rollingDutyEntity.getRailSection());
@@ -234,6 +238,7 @@ public class RollingServiceImpl implements RollingService {
             sdrd.setDate(RailMillCommonUtils.convertDateToString(rde.getDate()));
             sdrd.setShift(rde.getShift());
             sdrd.setMill(rde.getMill());
+            sdrd.setOrganisation(rde.getOrganisation());
             sdrd.setRailGrade(rde.getRailGrade());
             sdrd.setRailSection(rde.getRailSection());
             sdrd.setDutyId(rde.getDutyId());

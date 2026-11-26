@@ -48,6 +48,10 @@ public class UserMaster implements UserDetails {
     @Column(name = "EMPLOYMENT_TYPE", length = 20)
     private String employmentType; // REGULAR / CONTRACTUAL / MPA
 
+    /** Regular / Contractual: same as employee code. MPA: entered manually. */
+    @Column(name = "COMPANY_CODE", length = 50)
+    private String companyCode;
+
     @Column(name = "FULL_NAME", length = 255)
     private String fullName;
 

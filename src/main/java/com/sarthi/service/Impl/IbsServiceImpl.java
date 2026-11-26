@@ -3213,10 +3213,70 @@ public class IbsServiceImpl implements IbsService {
             list.add(dto);
         }
 
+        applyRejectionCharges(list);
         if ("RAILPAD".equalsIgnoreCase(productType)) {
             enrichRailpadDiversion(list);
         }
         return list;
+    }
+
+    /**
+     * Fully rejected calls: rejection charges = 0.9% of material value (PO item rate x offered qty) or Rs 5000,
+     * whichever is higher. Charges already given by the query are kept. One PO lookup for the whole list.
+     */
+    private void applyRejectionCharges(List<IbsInspectionDto> list) {
+        List<IbsInspectionDto> rejected = new ArrayList<>();
+        Set<String> caseNos = new LinkedHashSet<>();
+        for (IbsInspectionDto d : list) {
+            if (isFullyRejected(d) && (d.getRejectionCharges() == null || d.getRejectionCharges() <= 0.0)) {
+                rejected.add(d);
+                if (d.getCaseNumber() != null && !d.getCaseNumber().isBlank()) caseNos.add(d.getCaseNumber().trim());
+            }
+        }
+        if (rejected.isEmpty()) return;
+
+        // case_no -> item rows [item_sr_no, rate, value, basic_value, qty]
+        Map<String, List<Object[]>> itemsByCase = new HashMap<>();
+        if (!caseNos.isEmpty()) {
+            for (Object[] r : poHeaderRepository.findItemRatesByCaseNos(caseNos)) {
+                if (r[0] != null) itemsByCase.computeIfAbsent(safeString(r[0]).trim(), k -> new ArrayList<>()).add(r);
+            }
+        }
+        for (IbsInspectionDto d : rejected) {
+            double rate = poItemRate(itemsByCase.get(d.getCaseNumber() == null ? "" : d.getCaseNumber().trim()),
+                    d.getPoItemSerialNumbers());
+            double materialValue = rate * (d.getQuantityOffered() == null ? 0.0 : d.getQuantityOffered());
+            double charge = Math.max(materialValue * 0.9 / 100.0, 5000.0);
+            d.setRejectionCharges(Math.round(charge * 100.0) / 100.0);
+            d.setIsBlocked(1);
+        }
+    }
+
+    /** Rate of the call's PO item (matched by serial, else the first item): rate, or value / qty. 0 when unknown. */
+    private double poItemRate(List<Object[]> items, List<String> serials) {
+        if (items == null || items.isEmpty()) return 0.0;
+        Object[] match = null;
+        if (serials != null) {
+            outer:
+            for (String s : serials) {
+                for (Object[] r : items) {
+                    if (r[1] != null && sameSerial(safeString(r[1]), s)) { match = r; break outer; }
+                }
+            }
+        }
+        if (match == null) match = items.get(0);
+        double rate = safeDouble(match[2]);
+        if (rate > 0) return rate;
+        double value = safeDouble(match[3]) > 0 ? safeDouble(match[3]) : safeDouble(match[4]);
+        double qty = safeDouble(match[5]);
+        return qty > 0 ? value / qty : 0.0;
+    }
+
+    private static boolean sameSerial(String a, String b) {
+        if (a == null || b == null) return false;
+        a = a.trim(); b = b.trim();
+        if (a.equalsIgnoreCase(b)) return true;
+        try { return Integer.parseInt(a) == Integer.parseInt(b); } catch (NumberFormatException e) { return false; }
     }
 
     /** Whole offered quantity rejected (offered > 0, rejected >= offered) and the call is not cancelled. */

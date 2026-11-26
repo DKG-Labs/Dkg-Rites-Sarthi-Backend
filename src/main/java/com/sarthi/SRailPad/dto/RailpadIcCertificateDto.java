@@ -60,4 +60,6 @@ public class RailpadIcCertificateDto {
     private String sourceIcNo;
     /** e.g. "Material diverted from Source IC N/RPF-26110101/KRIS (railway letter 123 dt 10.11.2026)" */
     private String diversionNote;
+    /** Diverted-passed IC: lot / batch numbers of the diverted items (no inspection lots of its own). */
+    private String divertedLotNo;
 }

@@ -30,6 +30,7 @@ public class userRequestDto {
     private String employeeCode;
     private Integer ritesEmployeeCode; // only REGULAR / CONTRACTUAL
     private String employmentType; // REGULAR / CONTRACTUAL / MPA
+    private String companyCode;    // MPA only; others use the employee code
     private String fullName;
     private String shortName;
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")

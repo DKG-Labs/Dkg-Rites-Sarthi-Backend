@@ -87,14 +87,14 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
             return units[(int) n];
         if (n < 100)
             return tens[(int) (n / 10)] + ((n % 10 != 0) ? " " : "") + units[(int) (n % 10)];
+        // Remainder words only when the remainder is not 0 (300 -> "THREE HUNDRED", not "THREE HUNDREDZERO")
         if (n < 1000)
-            return units[(int) (n / 100)] + " HUNDRED" + ((n % 100 != 0) ? " " : "") + convertToWords(n % 100);
+            return units[(int) (n / 100)] + " HUNDRED" + ((n % 100 != 0) ? " " + convertToWords(n % 100) : "");
         if (n < 100000)
-            return convertToWords(n / 1000) + " THOUSAND" + ((n % 1000 != 0) ? " " : "") + convertToWords(n % 1000);
+            return convertToWords(n / 1000) + " THOUSAND" + ((n % 1000 != 0) ? " " + convertToWords(n % 1000) : "");
         if (n < 10000000)
-            return convertToWords(n / 100000) + " LAKH" + ((n % 100000 != 0) ? " " : "") + convertToWords(n % 100000);
-        return convertToWords(n / 10000000) + " CRORE" + ((n % 10000000 != 0) ? " " : "")
-                + convertToWords(n % 10000000);
+            return convertToWords(n / 100000) + " LAKH" + ((n % 100000 != 0) ? " " + convertToWords(n % 100000) : "");
+        return convertToWords(n / 10000000) + " CRORE" + ((n % 10000000 != 0) ? " " + convertToWords(n % 10000000) : "");
     }
 
     @Override
@@ -1488,7 +1488,18 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                           + ")"
                         : "";
                 dto.setDiversionNote("Material diverted from Source IC " + r.getSourceIcNo() + letter);
+                if (r.getSourceIcNo() != null && dto.getQuantityNowPassedInWords() != null) {
+                    dto.setQuantityNowPassedInWords(dto.getQuantityNowPassedInWords()
+                            + " MATERIAL DIVERTED FROM SOURCE IC " + r.getSourceIcNo() + ".");
+                }
             });
+            java.util.LinkedHashSet<String> lots = new java.util.LinkedHashSet<>();
+            for (Object[] l : railDiversionRequestRepository.findItemLotsByRequestNo(call.getDiversionRequestNo())) {
+                String v = l[0] != null && !l[0].toString().isBlank() ? l[0].toString().trim()
+                        : (l[1] != null ? l[1].toString().trim() : "");
+                if (!v.isEmpty()) lots.add(v);
+            }
+            dto.setDivertedLotNo(lots.isEmpty() ? null : String.join(", ", lots));
         } else if ("DIVERTED".equalsIgnoreCase(call.getCallCategory()) && call.getSourceIcNo() != null) {
             dto.setDiversionNote("Raised on diverted IC " + call.getSourceIcNo());
         }
