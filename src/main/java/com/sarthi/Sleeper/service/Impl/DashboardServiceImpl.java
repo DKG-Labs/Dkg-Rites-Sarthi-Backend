@@ -163,112 +163,108 @@ public class DashboardServiceImpl implements DashboardService {
     public List<MonthlyAnalysisDto> getMonthlyAnalysis(String startDate, String endDate) {
 
 
-        LocalDate sDate = CommonUtils.parseDateFlexible(startDate, LocalDate.now().minusMonths(1));
-        LocalDate eDate = CommonUtils.parseDateFlexible(endDate, LocalDate.now());
-        LocalDateTime start = sDate.atStartOfDay();
-        LocalDateTime end = eDate.atTime(23, 59, 59);
+        // Two windows, same as ERC:
+        //  - FY: 1 April of the current financial year -> today ("Cumulative for FY .. (upto Current Month)")
+        //  - Period: the selected range ("During the Current Month"); no range -> 1st of this month -> today
+        LocalDate today = LocalDate.now();
+        LocalDate fyStartDate = LocalDate.of(today.getMonthValue() >= 4 ? today.getYear() : today.getYear() - 1, 4, 1);
+        LocalDate periodStartDate = CommonUtils.parseDateFlexible(startDate, today.withDayOfMonth(1));
+        LocalDate periodEndDate = CommonUtils.parseDateFlexible(endDate, today);
 
+        LocalDateTime fyStart = fyStartDate.atStartOfDay();
+        LocalDateTime fyEnd = today.atTime(23, 59, 59);
+        LocalDateTime periodStart = periodStartDate.atStartOfDay();
+        LocalDateTime periodEnd = periodEndDate.atTime(23, 59, 59);
+        // Each query reads the union of both windows once and splits it with conditional sums
+        LocalDateTime from = fyStart.isBefore(periodStart) ? fyStart : periodStart;
+        LocalDateTime to = fyEnd.isAfter(periodEnd) ? fyEnd : periodEnd;
 
-        // The five queries are independent, so they run at the same time (the request now takes as long as the
-        // slowest one instead of the sum of all five). Each one logs its own time as "[SleeperAnalysis] ...".
+        // Four independent set-based queries (one row per plant each), run in parallel; no per-plant queries.
         java.util.concurrent.CompletableFuture<List<Object[]>> cfProd = java.util.concurrent.CompletableFuture.supplyAsync(
-                () -> timedAnalysisQuery("production", () -> productionDeclarationRepository.getProduction(start, end)));
+                () -> timedAnalysisQuery("production", () -> productionDeclarationRepository.getProduction(
+                        from, to, fyStart, fyEnd, periodStart, periodEnd)));
         java.util.concurrent.CompletableFuture<List<Object[]>> cfProc = java.util.concurrent.CompletableFuture.supplyAsync(
-                () -> timedAnalysisQuery("process rejection", () -> inspectionTestResultRepository.getProcessRejection(start, end)));
+                () -> timedAnalysisQuery("process rejection", () -> inspectionTestResultRepository.getProcessRejection(
+                        from, to, fyStart, fyEnd, periodStart, periodEnd)));
         java.util.concurrent.CompletableFuture<List<Object[]>> cfFinal = java.util.concurrent.CompletableFuture.supplyAsync(
-                () -> timedAnalysisQuery("final rejection", () -> inspectionTestResultRepository.getFinalRejection(start, end)));
+                () -> timedAnalysisQuery("final rejection", () -> inspectionTestResultRepository.getFinalRejection(
+                        from, to, fyStart, fyEnd, periodStart, periodEnd)));
         java.util.concurrent.CompletableFuture<List<Object[]>> cfMaster = java.util.concurrent.CompletableFuture.supplyAsync(
                 () -> timedAnalysisQuery("plant master", () -> productionDeclarationRepository.getPlantMasterData()));
-        java.util.concurrent.CompletableFuture<List<Object[]>> cfPo = java.util.concurrent.CompletableFuture.supplyAsync(
-                () -> timedAnalysisQuery("po details", () -> productionDeclarationRepository.getPoDetailsByPlant()));
+        // Same as ERC: only units with a final IC issued in the selected period (matches Download IC & Annexures)
+        java.util.concurrent.CompletableFuture<Set<String>> cfIcPlants = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            long t0 = System.currentTimeMillis();
+            try {
+                return new HashSet<>(sleeperWorkflowRepository.findPlantIdsWithFinalIcIssued(periodStartDate, periodEndDate));
+            } finally {
+                System.out.println("[SleeperAnalysis] plants with IC took " + (System.currentTimeMillis() - t0) + " ms");
+            }
+        });
 
-        List<Object[]> prodList = cfProd.join();
-        List<Object[]> procList = cfProc.join();
-        List<Object[]> finalList = cfFinal.join();
-        List<Object[]> masterList = cfMaster.join();
-        List<Object[]> poList = cfPo.join();
-        Map<String, Long> productionMap = new HashMap<>();
-        Map<String, Long> processMap = new HashMap<>();
-        Map<String, Long> finalMap = new HashMap<>();
+        Set<String> icPlants = cfIcPlants.join();
 
-        Map<String, String> plantNameMap = new HashMap<>();
-        Map<String, String> rioMap = new HashMap<>();
-
-        Map<String, Long> noOfPosMap = new HashMap<>();
-        Map<String, Long> poQtyMap = new HashMap<>();
-        Map<String, String> uomMap = new HashMap<>();
-
-        for (Object[] o : prodList) {
-            String plantId = (String) o[0];
-            productionMap.put(plantId, ((Number) o[3]).longValue());
-        }
-
-        for (Object[] o : procList) {
-            processMap.put((String) o[0], ((Number) o[1]).longValue());
-        }
-
-        for (Object[] o : finalList) {
-            finalMap.put((String) o[0], ((Number) o[1]).longValue());
-        }
-
-        for (Object[] o : masterList) {
-            String plantId = (String) o[0];
-            plantNameMap.put(plantId, (String) o[1]); // company - plantId
-            rioMap.put(plantId, (String) o[2]);       // RIO
-        }
-        for (Object[] o : poList) {
-
-            String plantId = (String) o[0];
-
-            noOfPosMap.put(
-                    plantId,
-                    o[1] != null ? ((Number) o[1]).longValue() : 0L
-            );
-
-            poQtyMap.put(
-                    plantId,
-                    o[2] != null ? ((Number) o[2]).longValue() : 0L
-            );
-
-            uomMap.put(
-                    plantId,
-                    o[3] != null ? o[3].toString() : ""
-            );
-        }
+        // plantId -> {fy, period}
+        Map<String, long[]> productionMap = toWindowMap(cfProd.join());
+        Map<String, long[]> processMap = toWindowMap(cfProc.join());
+        Map<String, long[]> finalMap = toWindowMap(cfFinal.join());
 
         List<MonthlyAnalysisDto> result = new ArrayList<>();
-        int i = 1;
+        java.util.Set<String> seenPlants = new java.util.HashSet<>();
+        long[] none = new long[2];
 
-        for (String plantId : plantNameMap.keySet()) {
+        for (Object[] o : cfMaster.join()) {
+            String plantId = (String) o[0];
+            if (plantId == null || !icPlants.contains(plantId) || !seenPlants.add(plantId)) continue;
 
-            long production = productionMap.getOrDefault(plantId, 0L);
-            long process = processMap.getOrDefault(plantId, 0L);
-            long finalR = finalMap.getOrDefault(plantId, 0L);
-
-            long acceptance = production - (process + finalR);
-
-            double rejectionPercentage = production == 0 ? 0 :
-                    ((process + finalR) * 100.0) / production;
+            long[] prod = productionMap.getOrDefault(plantId, none);
+            long[] proc = processMap.getOrDefault(plantId, none);
+            long[] fin = finalMap.getOrDefault(plantId, none);
 
             MonthlyAnalysisDto dto = new MonthlyAnalysisDto();
-            dto.setSno(i++);
-            dto.setPlantName(plantNameMap.get(plantId)); // company - plantId
-            dto.setInspectedBy(rioMap.getOrDefault(plantId, "N/A")); // RIO
-            dto.setProduction(production);
-            dto.setProcessRejection(process);
-            dto.setFinalRejection(finalR);
-            dto.setAcceptance(acceptance);
-            dto.setRejectionPercentage(rejectionPercentage);
+            dto.setPlantId(plantId);
+            dto.setPlantName((String) o[1]);   // company - plantId
+            dto.setRio((String) o[2]);
+            dto.setZonalRailway((String) o[3]);
 
-            dto.setNoOfPos(noOfPosMap.getOrDefault(plantId, 0L));
-            dto.setPoQty(poQtyMap.getOrDefault(plantId, 0L));
-            dto.setUom(uomMap.getOrDefault(plantId, ""));
+            dto.setFyInspected(prod[0]);
+            dto.setFyProcessRejection(proc[0]);
+            dto.setFyFinalRejection(fin[0]);
+            dto.setFyAcceptance(Math.max(0L, prod[0] - proc[0] - fin[0]));
+            dto.setFyRejectionPercentage(rejectionPct(proc[0] + fin[0], prod[0]));
+
+            dto.setMonthInspected(prod[1]);
+            dto.setMonthProcessRejection(proc[1]);
+            dto.setMonthFinalRejection(fin[1]);
+            dto.setMonthAcceptance(Math.max(0L, prod[1] - proc[1] - fin[1]));
+            dto.setMonthRejectionPercentage(rejectionPct(proc[1] + fin[1], prod[1]));
+
             result.add(dto);
         }
 
-
+        Comparator<String> nullsLastCi = Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER);
+        result.sort(Comparator.comparing(MonthlyAnalysisDto::getZonalRailway, nullsLastCi)
+                .thenComparing(MonthlyAnalysisDto::getPlantName, nullsLastCi));
+        int i = 1;
+        for (MonthlyAnalysisDto dto : result) dto.setSno(i++);
 
         return result;
+    }
+
+    /** Rows of (plantId, fyValue, periodValue) -> plantId -> {fy, period}. */
+    private static Map<String, long[]> toWindowMap(List<Object[]> rows) {
+        Map<String, long[]> map = new HashMap<>();
+        for (Object[] o : rows) {
+            if (o[0] == null) continue;
+            long fy = o[1] != null ? ((Number) o[1]).longValue() : 0L;
+            long period = o[2] != null ? ((Number) o[2]).longValue() : 0L;
+            map.merge(o[0].toString(), new long[]{fy, period}, (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
+        }
+        return map;
+    }
+
+    private static double rejectionPct(long rejected, long inspected) {
+        if (inspected <= 0) return 0.0;
+        return Math.round(rejected * 10000.0 / inspected) / 100.0;
     }
 
 
@@ -1915,7 +1911,7 @@ public class DashboardServiceImpl implements DashboardService {
             String rawPlantId = "";
             String category = "Mainline";
             long produced, inspected, icQty, rejectedInProcess;
-            long dimension, endDamage, honeycomb, dowel, other;
+            long dimension, endDamage, honeycomb, dowel, other, sbt, nftc, anyOther;
             final java.util.Set<String> calls = new java.util.HashSet<>();
             String lastIcDay = "";
         }
@@ -2051,7 +2047,8 @@ public class DashboardServiceImpl implements DashboardService {
                     categoryByPd.put(qNum(r[0]), category.apply(r[1]));
                 }
                 for (Object[] r : cfDefects.join()) {
-                    defectsByPd.put(qNum(r[0]), new long[] { qNum(r[1]), qNum(r[2]), qNum(r[3]), qNum(r[4]), qNum(r[5]) });
+                    defectsByPd.put(qNum(r[0]), new long[] { qNum(r[1]), qNum(r[2]), qNum(r[3]), qNum(r[4]), qNum(r[5]),
+                            qNum(r[6]), qNum(r[7]), qNum(r[8]) });
                 }
             }
 
@@ -2070,11 +2067,13 @@ public class DashboardServiceImpl implements DashboardService {
                 finalByCall.put(r[0].toString().trim(),
                         new long[] { qNum(r[1]), qNum(r[2]), qNum(r[3]), qNum(r[4]), qNum(r[5]), qNum(r[6]) });
             }
-            // The IC's rejected sleepers by defect group (dimension, end damage, honeycomb/surface/crack, dowel, other)
+            // The IC's rejected sleepers by defect group
+            // (dimension, end damage, honeycomb/surface/crack, dowel, insert sink/tilt, SBT, NFTC, any other)
             java.util.Map<String, long[]> rejectionGroupsByCall = new java.util.HashMap<>();
             for (Object[] r : cfRejGroups.join()) {
                 rejectionGroupsByCall.put(r[0].toString().trim(),
-                        new long[] { qNum(r[1]), qNum(r[2]), qNum(r[3]), qNum(r[4]), qNum(r[5]) });
+                        new long[] { qNum(r[1]), qNum(r[2]), qNum(r[3]), qNum(r[4]), qNum(r[5]),
+                                qNum(r[6]), qNum(r[7]), qNum(r[8]) });
             }
 
             // 2. Offered quantity, accepted quantity, calls and last IC date per plant and category;
@@ -2121,14 +2120,17 @@ public class DashboardServiceImpl implements DashboardService {
                     q.inspected += fin[2];
                     q.icQty += cat.toLowerCase().contains("turnout") && fin[1] > 0 ? fin[1] : fin[0];
 
-                    long[] g = rejectionGroupsByCall.getOrDefault(callNo, new long[5]);
-                    long grouped = g[0] + g[1] + g[2] + g[3] + g[4];
+                    long[] g = rejectionGroupsByCall.getOrDefault(callNo, new long[8]);
+                    long grouped = java.util.Arrays.stream(g).sum();
                     q.dimension += g[0];
                     q.endDamage += g[1];
                     q.honeycomb += g[2];
                     q.dowel += g[3];
+                    q.other += g[4];
+                    q.sbt += g[5];
+                    q.nftc += g[6];
                     // Rejected sleepers the reason list does not cover still count, so the groups add up to the IC total
-                    q.other += g[4] + Math.max(0L, fin[4] - grouped);
+                    q.anyOther += g[7] + Math.max(0L, fin[4] - grouped);
                 }
                 if (r[0] != null && homeRow) q.calls.add(callNo);
                 String icDay = day.apply(r[6]);
@@ -2147,6 +2149,9 @@ public class DashboardServiceImpl implements DashboardService {
                         q.honeycomb += d[2];
                         q.dowel += d[3];
                         q.other += d[4];
+                        q.sbt += d[5];
+                        q.nftc += d[6];
+                        q.anyOther += d[7];
                     }
                 }
             }
@@ -2175,7 +2180,8 @@ public class DashboardServiceImpl implements DashboardService {
                     if (!named.isBlank()) cspName = named;
                 }
 
-                long totalDefects = q.dimension + q.endDamage + q.honeycomb + q.dowel + q.other;
+                long totalDefects = q.dimension + q.endDamage + q.honeycomb + q.dowel + q.other
+                        + q.sbt + q.nftc + q.anyOther;
                 QualitySleeperReportDto dto = new QualitySleeperReportDto();
                 dto.setRailwayZone(railway);
                 dto.setPlantId(raw);
@@ -2189,6 +2195,9 @@ public class DashboardServiceImpl implements DashboardService {
                 dto.setHoneyCombingSurfaceDefectCrack(q.honeycomb);
                 dto.setMissingDowel(q.dowel);
                 dto.setOtherDefectsInsertSinkTilt(q.other);
+                dto.setSbt(q.sbt);
+                dto.setNftc(q.nftc);
+                dto.setAnyOtherDefect(q.anyOther);
                 dto.setTotalRejectedDefects(totalDefects);
                 dto.setRejectionPercentage(q.produced > 0 ? Math.round(totalDefects * 10000.0 / q.produced) / 100.0 : 0.0);
                 dto.setIcIssuedQty(q.icQty);
