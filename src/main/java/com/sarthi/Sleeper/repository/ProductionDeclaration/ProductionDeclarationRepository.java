@@ -592,18 +592,29 @@ WHERE d.batch_number = :batchNo
             @Param("startDate") String startDate,
             @Param("endDate") String endDate);
 
+    /**
+     * Monthly Analysis of Units: sleepers cast (inspected) per plant for two windows in one pass.
+     * Row: plant_id, FY total, selected-period total. Only plants with production in [fromDate, toDate].
+     */
     @Query(value = """
-            SELECT vp.plant_id, vp.plant_name, vp.company_name,
-                   COALESCE(SUM(pd.total_casted_sleepers), 0)
-            FROM vendor_plant vp
-            LEFT JOIN production_declaration pd 
+            SELECT vp.plant_id,
+                   COALESCE(SUM(CASE WHEN pd.created_date BETWEEN :fyStart AND :fyEnd
+                                     THEN pd.total_casted_sleepers END), 0) AS fy_inspected,
+                   COALESCE(SUM(CASE WHEN pd.created_date BETWEEN :periodStart AND :periodEnd
+                                     THEN pd.total_casted_sleepers END), 0) AS period_inspected
+            FROM (SELECT DISTINCT plant_id FROM vendor_plant) vp
+            JOIN production_declaration pd
                 ON pd.plant_id COLLATE utf8mb4_unicode_ci = vp.plant_id
-                AND pd.created_date BETWEEN :startDate AND :endDate
-            GROUP BY vp.plant_id, vp.plant_name, vp.company_name
+                AND pd.created_date BETWEEN :fromDate AND :toDate
+            GROUP BY vp.plant_id
             """, nativeQuery = true)
     List<Object[]> getProduction(
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate);
+            @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate,
+            @Param("fyStart") LocalDateTime fyStart,
+            @Param("fyEnd") LocalDateTime fyEnd,
+            @Param("periodStart") LocalDateTime periodStart,
+            @Param("periodEnd") LocalDateTime periodEnd);
 /*
     @Query(value = """
             SELECT 
@@ -633,11 +644,13 @@ WHERE d.batch_number = :batchNo
 
             CONCAT(vp.company_name, ' - ', vp.plant_id) AS plant_name,
 
-            vp.rio AS inspected_by
+            vp.rio AS inspected_by,
+
+            vp.zonal_railway AS zonal_railway
 
         FROM vendor_plant vp
 
-        GROUP BY vp.plant_id, vp.company_name, vp.rio
+        GROUP BY vp.plant_id, vp.company_name, vp.rio, vp.zonal_railway
         """, nativeQuery = true)
 List<Object[]> getPlantMasterData();
 

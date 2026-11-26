@@ -39,6 +39,9 @@ public class QualitySleeperReportDto {
     private Long missingDowel;
 
     private Long otherDefectsInsertSinkTilt;
+    private Long sbt;
+    private Long nftc;
+    private Long anyOtherDefect;
 
     private Long totalRejectedDefects;
 

@@ -203,39 +203,52 @@ GROUP BY vp.plant_id
           @Param("endDate") LocalDateTime endDate);
 */
 
+    /**
+     * Monthly Analysis of Units: process (demoulding) rejections per plant for two windows in one pass.
+     * Row: plant_id, FY count, selected-period count. A defect counts when it has a visual or dimensional reason.
+     */
     @Query(value = """
-SELECT 
+SELECT
     vp.plant_id,
-    COUNT(d.id)
-FROM vendor_plant vp
-LEFT JOIN demoulding_inspection di 
+    SUM(CASE WHEN di.created_date BETWEEN :fyStart AND :fyEnd THEN 1 ELSE 0 END) AS fy_process,
+    SUM(CASE WHEN di.created_date BETWEEN :periodStart AND :periodEnd THEN 1 ELSE 0 END) AS period_process
+FROM (SELECT DISTINCT plant_id FROM vendor_plant) vp
+JOIN demoulding_inspection di
     ON di.plant_id COLLATE utf8mb4_unicode_ci = vp.plant_id
-LEFT JOIN demoulding_defective_sleepers d 
+    AND di.created_date BETWEEN :fromDate AND :toDate
+JOIN demoulding_defective_sleepers d
     ON d.inspection_id = di.id
-WHERE di.created_date BETWEEN :startDate AND :endDate
-AND (
-    TRIM(COALESCE(d.visual_reason, '')) <> ''
-    OR
-    TRIM(COALESCE(d.dim_reason, '')) <> ''
-)
+WHERE TRIM(COALESCE(d.visual_reason, '')) <> ''
+   OR TRIM(COALESCE(d.dim_reason, '')) <> ''
 GROUP BY vp.plant_id
 """, nativeQuery = true)
     List<Object[]> getProcessRejection(
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate);
+            @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate,
+            @Param("fyStart") LocalDateTime fyStart,
+            @Param("fyEnd") LocalDateTime fyEnd,
+            @Param("periodStart") LocalDateTime periodStart,
+            @Param("periodEnd") LocalDateTime periodEnd);
 
 
+  /**
+   * Monthly Analysis of Units: final-inspection rejected sleepers per plant for two windows in one pass.
+   * Row: plant_id, FY count, selected-period count (distinct batch + sleeper).
+   */
   @Query(value = """
-SELECT 
+SELECT
     pd.plant_id,
-    COUNT(DISTINCT CONCAT(h.batch_id, '-', r.sleeper_id)) AS final_rejection
+    COUNT(DISTINCT CASE WHEN h.created_date BETWEEN :fyStart AND :fyEnd
+                        THEN CONCAT(h.batch_id, '-', r.sleeper_id) END) AS fy_final,
+    COUNT(DISTINCT CASE WHEN h.created_date BETWEEN :periodStart AND :periodEnd
+                        THEN CONCAT(h.batch_id, '-', r.sleeper_id) END) AS period_final
 FROM production_declaration pd
 
-JOIN inspection_test_header h 
+JOIN inspection_test_header h
     ON h.batch_id = pd.id
-    AND h.created_date BETWEEN :startDate AND :endDate
+    AND h.created_date BETWEEN :fromDate AND :toDate
 
-JOIN inspection_test_result r 
+JOIN inspection_test_result r
     ON r.test_header_id = h.id
     AND r.result = 'REJECTED'
     AND r.active = true
@@ -243,8 +256,12 @@ JOIN inspection_test_result r
 GROUP BY pd.plant_id
 """, nativeQuery = true)
   List<Object[]> getFinalRejection(
-          @Param("startDate") LocalDateTime startDate,
-          @Param("endDate") LocalDateTime endDate);
+          @Param("fromDate") LocalDateTime fromDate,
+          @Param("toDate") LocalDateTime toDate,
+          @Param("fyStart") LocalDateTime fyStart,
+          @Param("fyEnd") LocalDateTime fyEnd,
+          @Param("periodStart") LocalDateTime periodStart,
+          @Param("periodEnd") LocalDateTime periodEnd);
 
     @Query(value = """
         SELECT pd.batch_number,
