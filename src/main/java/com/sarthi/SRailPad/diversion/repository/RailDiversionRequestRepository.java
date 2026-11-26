@@ -21,6 +21,10 @@ public interface RailDiversionRequestRepository extends JpaRepository<RailDivers
 
     boolean existsByRequestNo(String requestNo);
 
+    /** Lot / batch numbers of a request's items: [lotNo, batchNo]. */
+    @Query("SELECT i.lotNo, i.batchNo FROM RailDiversionItem i WHERE i.diversionRequest.requestNo = :requestNo ORDER BY i.id")
+    List<Object[]> findItemLotsByRequestNo(@Param("requestNo") String requestNo);
+
     List<RailDiversionRequest> findByVendorCodeAndStatusNotOrderByCreatedDateDesc(String vendorCode, DiversionRequestStatus status);
 
     List<RailDiversionRequest> findByCmUserIdAndStatusOrderByCreatedDateDesc(String cmUserId, DiversionRequestStatus status);

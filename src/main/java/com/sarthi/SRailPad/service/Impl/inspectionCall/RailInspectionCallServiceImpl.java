@@ -1488,7 +1488,18 @@ public class RailInspectionCallServiceImpl implements RailInspectionCallService 
                           + ")"
                         : "";
                 dto.setDiversionNote("Material diverted from Source IC " + r.getSourceIcNo() + letter);
+                if (r.getSourceIcNo() != null && dto.getQuantityNowPassedInWords() != null) {
+                    dto.setQuantityNowPassedInWords(dto.getQuantityNowPassedInWords()
+                            + " MATERIAL DIVERTED FROM SOURCE IC " + r.getSourceIcNo() + ".");
+                }
             });
+            java.util.LinkedHashSet<String> lots = new java.util.LinkedHashSet<>();
+            for (Object[] l : railDiversionRequestRepository.findItemLotsByRequestNo(call.getDiversionRequestNo())) {
+                String v = l[0] != null && !l[0].toString().isBlank() ? l[0].toString().trim()
+                        : (l[1] != null ? l[1].toString().trim() : "");
+                if (!v.isEmpty()) lots.add(v);
+            }
+            dto.setDivertedLotNo(lots.isEmpty() ? null : String.join(", ", lots));
         } else if ("DIVERTED".equalsIgnoreCase(call.getCallCategory()) && call.getSourceIcNo() != null) {
             dto.setDiversionNote("Raised on diverted IC " + call.getSourceIcNo());
         }
