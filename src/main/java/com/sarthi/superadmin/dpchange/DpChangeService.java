@@ -31,6 +31,10 @@ import java.util.*;
 public class DpChangeService {
 
     static final int REVERT_HOURS = 2;
+    /** Vendor screens allow raising a call up to (effective DP - 4 days). */
+    private static final int CUTOFF_DAYS = 4;
+    private static final String DP_COL = "delivery_date";
+    private static final String EXT_DP_COL = "extended_delivery_date";
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
@@ -133,6 +137,13 @@ public class DpChangeService {
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("New DP date is not a valid date.");
         }
+        // The vendor can raise a call up to (date - 4 days). A date whose cutoff is already past opens nothing,
+        // and the vendor PO list replaces a past Ext. DP from the PO amendment — so refuse it.
+        LocalDate earliest = LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")).plusDays(CUTOFF_DAYS);
+        if (newDate.isBefore(earliest)) {
+            throw new IllegalArgumentException("New date must be on or after " + earliest.format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                    + " (calls can be raised up to " + CUTOFF_DAYS + " days before the DP).");
+        }
         // dates are handled as 'yyyy-MM-dd HH:mm:ss' text: no JVM (IST) <-> DB (UTC) conversion
         String newDt = newDate + " 23:59:00";   // same time of day the PO sync stores
 
@@ -142,23 +153,30 @@ public class DpChangeService {
             throw new IllegalStateException("Sr No. " + sr + " already has a temporary DP change. Revert it first.");
         }
 
-        // every row that carries this serial's DP: po_item + amendment copies
+        // The vendor screens (ERC / Sleeper / Rail Pad) take the call cutoff from the Ext. DP when the serial has one,
+        // else from the DP — so change that same date, or the change has no effect.
+        List<String> extDps = jdbc.queryForList(
+                "SELECT DATE_FORMAT(i.extended_delivery_date, '%Y-%m-%d %H:%i:%s') FROM po_item i JOIN po_header h ON h.id = i.po_header_id "
+                        + "WHERE h.po_no = ? AND i.item_sr_no = ?", String.class, po, sr);
+        if (extDps.isEmpty()) throw new NoSuchElementException("Sr No. " + sr + " not found on PO " + po + ".");
+        String col = extDps.get(0) != null ? EXT_DP_COL : DP_COL;
+
+        // every row that carries this serial's date: po_item + amendment copies
         List<Map<String, Object>> affected = new ArrayList<>();
         affected.addAll(jdbc.query(
-                "SELECT 'po_item' t, i.id, DATE_FORMAT(i.delivery_date, '%Y-%m-%d %H:%i:%s') d FROM po_item i JOIN po_header h ON h.id = i.po_header_id "
-                        + "WHERE h.po_no = ? AND i.item_sr_no = ?", (rs, i) -> row(rs.getString("t"), rs.getLong("id"), rs.getString("d")), po, sr));
-        if (affected.isEmpty()) throw new NoSuchElementException("Sr No. " + sr + " not found on PO " + po + ".");
+                "SELECT 'po_item' t, i.id, DATE_FORMAT(i." + col + ", '%Y-%m-%d %H:%i:%s') d FROM po_item i JOIN po_header h ON h.id = i.po_header_id "
+                        + "WHERE h.po_no = ? AND i.item_sr_no = ?", (rs, i) -> row(rs.getString("t"), rs.getLong("id"), rs.getString("d"), col), po, sr));
         String oldDp = (String) affected.get(0).get("old");
         if (oldDp != null && oldDp.startsWith(newDate.toString())) {
-            throw new IllegalArgumentException("New DP is the same as the current DP.");
+            throw new IllegalArgumentException(EXT_DP_COL.equals(col) ? "New date is the same as the current Ext. DP." : "New DP is the same as the current DP.");
         }
         affected.addAll(jdbc.query(
-                "SELECT 'amendment_po_item' t, ai.id, DATE_FORMAT(ai.delivery_date, '%Y-%m-%d %H:%i:%s') d FROM amendment_po_item ai "
+                "SELECT 'amendment_po_item' t, ai.id, DATE_FORMAT(ai." + col + ", '%Y-%m-%d %H:%i:%s') d FROM amendment_po_item ai "
                         + "JOIN amendment_po_header ah ON ah.id = ai.amended_po_header_id WHERE ah.po_no = ? AND ai.item_sr_no = ?",
-                (rs, i) -> row(rs.getString("t"), rs.getLong("id"), rs.getString("d")), po, sr));
+                (rs, i) -> row(rs.getString("t"), rs.getLong("id"), rs.getString("d"), col), po, sr));
 
         for (Map<String, Object> r : affected) {
-            jdbc.update("UPDATE " + table(r) + " SET delivery_date = CAST(? AS DATETIME) WHERE id = ?", newDt, r.get("id"));
+            jdbc.update("UPDATE " + table(r) + " SET " + column(r) + " = CAST(? AS DATETIME) WHERE id = ?", newDt, r.get("id"));
         }
 
         String name = user.getFullName() != null && !user.getFullName().isBlank() ? user.getFullName() : user.getUsername();
@@ -223,7 +241,8 @@ public class DpChangeService {
                 // kept a time-zone-shifted value, so they restore the change's own old_delivery_date (exact DB text).
                 Object old = "text".equals(r.get("fmt")) ? r.get("old") : c.get("old_dt");
                 // only if the row still holds the date we set (a PO / MA sync may have changed it since)
-                int n = jdbc.update("UPDATE " + table(r) + " SET delivery_date = CAST(? AS DATETIME) WHERE id = ? AND delivery_date <=> CAST(? AS DATETIME)",
+                String colName = column(r);   // records saved before Ext. DP support have no "col": delivery_date
+                int n = jdbc.update("UPDATE " + table(r) + " SET " + colName + " = CAST(? AS DATETIME) WHERE id = ? AND " + colName + " <=> CAST(? AS DATETIME)",
                         old == null ? null : old.toString(), ((Number) r.get("id")).longValue(), setDt);
                 if (n > 0) restored++; else keptNewer++;
             }
@@ -276,6 +295,9 @@ public class DpChangeService {
         m.put("srNo", rs.getString("item_sr_no"));
         m.put("oldDp", rs.getString("old_dp"));
         m.put("newDp", rs.getString("new_dp"));
+        // which date was changed: "EXT_DP" when the serial had an Ext. DP, else "DP"
+        String rowsJson = rs.getString("affected_rows");
+        m.put("field", rowsJson != null && rowsJson.contains("\"" + EXT_DP_COL + "\"") ? "EXT_DP" : "DP");
         m.put("remarks", rs.getString("remarks"));
         m.put("changedBy", rs.getString("changed_by_name"));
         m.put("changedByEmpCode", rs.getString("changed_by_emp_code"));
@@ -289,12 +311,18 @@ public class DpChangeService {
         return m;
     }
 
-    private static Map<String, Object> row(String table, long id, String old) {
+    private static Map<String, Object> row(String table, long id, String old, String col) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("table", table);
         m.put("id", id);
         m.put("old", old);
+        m.put("col", col);
         return m;
+    }
+
+    /** Only the two date columns can be written; records without "col" (saved before Ext. DP support) are delivery_date. */
+    private static String column(Map<String, Object> r) {
+        return EXT_DP_COL.equals(r.get("col")) ? EXT_DP_COL : DP_COL;
     }
 
     /** Only the two known tables can be written (the name comes from our own JSON, never from the request). */
@@ -308,7 +336,7 @@ public class DpChangeService {
     private String toJson(List<Map<String, Object>> rows) {
         List<Map<String, Object>> clean = new ArrayList<>();
         for (Map<String, Object> r : rows) clean.add(Map.of("table", r.get("table"), "id", r.get("id"),
-                "old", r.get("old") == null ? "" : r.get("old"), "fmt", "text"));
+                "old", r.get("old") == null ? "" : r.get("old"), "fmt", "text", "col", column(r)));
         try {
             return mapper.writeValueAsString(clean);
         } catch (Exception e) {
