@@ -214,11 +214,13 @@ public class DashboardServiceImpl implements DashboardService {
 
         for (Object[] o : cfMaster.join()) {
             String plantId = (String) o[0];
-            if (plantId == null || !icPlants.contains(plantId) || !seenPlants.add(plantId)) continue;
+            if (plantId == null || !icPlants.contains(plantId)) continue;
+            String pk = analysisPlantKey(plantId);
+            if (!seenPlants.add(pk)) continue;
 
-            long[] prod = productionMap.getOrDefault(plantId, none);
-            long[] proc = processMap.getOrDefault(plantId, none);
-            long[] fin = finalMap.getOrDefault(plantId, none);
+            long[] prod = productionMap.getOrDefault(pk, none);
+            long[] proc = processMap.getOrDefault(pk, none);
+            long[] fin = finalMap.getOrDefault(pk, none);
 
             MonthlyAnalysisDto dto = new MonthlyAnalysisDto();
             dto.setPlantId(plantId);
@@ -250,14 +252,19 @@ public class DashboardServiceImpl implements DashboardService {
         return result;
     }
 
-    /** Rows of (plantId, fyValue, periodValue) -> plantId -> {fy, period}. */
+    /** Plant id as matched across tables: case-insensitive, without ':' and surrounding spaces. */
+    private static String analysisPlantKey(String plantId) {
+        return plantId.replace(":", "").trim().toLowerCase();
+    }
+
+    /** Rows of (plantId, fyValue, periodValue) -> normalised plant key -> {fy, period}. */
     private static Map<String, long[]> toWindowMap(List<Object[]> rows) {
         Map<String, long[]> map = new HashMap<>();
         for (Object[] o : rows) {
             if (o[0] == null) continue;
             long fy = o[1] != null ? ((Number) o[1]).longValue() : 0L;
             long period = o[2] != null ? ((Number) o[2]).longValue() : 0L;
-            map.merge(o[0].toString(), new long[]{fy, period}, (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
+            map.merge(analysisPlantKey(o[0].toString()), new long[]{fy, period}, (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
         }
         return map;
     }

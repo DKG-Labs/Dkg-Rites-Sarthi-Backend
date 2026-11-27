@@ -35,6 +35,19 @@ public class FinalProductionInspectionController {
     public ResponseEntity<String> saveInspection(
             @RequestBody InspectionSaveRequestDto dto) {
 
+        // The IE who saves is the logged-in user, not whatever id the screen sends: a wrong client-side id
+        // (e.g. a mapping record id) credited rejections to an IE of another plant.
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof com.sarthi.entity.UserMaster user && user.getUserId() != null) {
+            Long loggedIn = user.getUserId().longValue();
+            if (dto.getCreatedBy() != null && !loggedIn.equals(dto.getCreatedBy())) {
+                System.err.println("[FinalInspection save] createdBy " + dto.getCreatedBy()
+                        + " sent by client differs from logged-in user " + loggedIn + "; using the logged-in user");
+            }
+            dto.setCreatedBy(loggedIn);
+        }
+
         inspectionService.saveInspection(dto);
 
         return ResponseEntity.ok("Inspection Saved Successfully");

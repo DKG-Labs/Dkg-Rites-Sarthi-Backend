@@ -176,15 +176,11 @@ public class ProductionFinalInspectionServiceImpl implements ProductionFinalInsp
                     .collect(Collectors.toMap(InspectionReasonMaster::getId, r -> r));
 
             // Pre-fetch existing active records for the batch/module (Eliminate N+1 query)
+            // Read only: these are managed entities, so changing them here would be flushed on commit and would
+            // deactivate (and stamp this IE on) every earlier result of the batch, not just the sleepers being saved.
+            // STEP 4 below deactivates exactly the incoming sleepers.
             List<InspectionTestResult> allExistingActive = resultRepository
                     .findByTestHeader_BatchIdAndModuleIdAndActiveTrue(dto.getBatchId(), dto.getModuleId());
-            List<InspectionTestResult> oldResultsToDeactivate = new ArrayList<>();
-            for (InspectionTestResult old : allExistingActive) {
-                old.setActive(false);
-                old.setUpdatedBy(dto.getCreatedBy());
-                old.setUpdatedDate(LocalDateTime.now());
-                oldResultsToDeactivate.add(old);
-            }
 
             // Collections for bulk save
             List<InspectionTestResult> newResultsToSave = new ArrayList<>();
