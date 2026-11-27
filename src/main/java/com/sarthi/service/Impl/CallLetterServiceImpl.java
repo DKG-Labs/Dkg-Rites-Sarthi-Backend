@@ -343,10 +343,7 @@ public class CallLetterServiceImpl implements CallLetterService {
 
                     // Calculate and set total PO Quantity and Value
                     if (ph.getItems() != null && !ph.getItems().isEmpty()) {
-                        int totalQty = ph.getItems().stream()
-                                .mapToInt(item -> item.getQty() != null ? item.getQty() : 0)
-                                .sum();
-                        dto.setPoQuantity(totalQty);
+                        dto.setPoQuantity(exactPoTotal(ph.getItems()));
 
                         BigDecimal totalVal = ph.getItems().stream()
                                 .map(item -> item.getValue() != null ? item.getValue() : BigDecimal.ZERO)
@@ -683,6 +680,20 @@ public class CallLetterServiceImpl implements CallLetterService {
                 .replaceAll("[\\s-]", "");
     }
 
+    /**
+     * Total PO quantity from the exact (decimal) item quantities, so 20096.06 Mtr is not cut to 20090.
+     * Rows without an exact quantity use the whole-number qty column.
+     */
+    private static BigDecimal exactPoTotal(java.util.List<PoItem> items) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (PoItem item : items) {
+            if (item.getQtyExact() != null) total = total.add(item.getQtyExact());
+            else if (item.getQty() != null) total = total.add(BigDecimal.valueOf(item.getQty()));
+        }
+        total = total.stripTrailingZeros();
+        return total.scale() < 0 ? total.setScale(0) : total;
+    }
+
     private String normalizeSrNo(String srNo) {
         if (srNo == null) return "";
         return srNo.trim().replaceFirst("^0+(?!$)", "");
@@ -1011,10 +1022,7 @@ public class CallLetterServiceImpl implements CallLetterService {
                     dto.setRlyPoSr(buildRlyPoSr(ph.getRlyShortName(), ph.getPoNo(), cleanSrNo));
 
                     if (ph.getItems() != null && !ph.getItems().isEmpty()) {
-                        int totalQty = ph.getItems().stream()
-                                .mapToInt(item -> item.getQty() != null ? item.getQty() : 0)
-                                .sum();
-                        dto.setPoQuantity(totalQty);
+                        dto.setPoQuantity(exactPoTotal(ph.getItems()));
 
                         BigDecimal totalVal = ph.getItems().stream()
                                 .map(item -> item.getValue() != null ? item.getValue() : BigDecimal.ZERO)

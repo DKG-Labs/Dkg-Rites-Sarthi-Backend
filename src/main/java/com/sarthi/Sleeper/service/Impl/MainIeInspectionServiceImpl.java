@@ -492,7 +492,7 @@ public class MainIeInspectionServiceImpl implements MainIeInspectionService {
         }
         
         // Turnout body
-        int maxBody = sleeperType != null && (sleeperType.contains("RT-4865") || sleeperType.contains("RT-9841")) ? 54 : (sleeperType != null && sleeperType.contains("RT-6068") ? 22 : (sleeperType != null && sleeperType.contains("RT-5691") ? 101 : 83));
+        int maxBody = sleeperType != null && (sleeperType.contains("RT-4865") || sleeperType.contains("RT-9841")) ? 54 : (sleeperType != null && sleeperType.contains("RT-6068") ? 22 : (sleeperType != null && (sleeperType.contains("RT-5691") || sleeperType.contains("T-10070")) ? 101 : 83));
         for (int i = 1; i <= maxBody; i++) {
             list.add(String.valueOf(i));
         }
