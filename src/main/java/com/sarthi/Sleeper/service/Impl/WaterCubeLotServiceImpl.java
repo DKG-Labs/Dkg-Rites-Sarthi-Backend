@@ -209,14 +209,15 @@ public class WaterCubeLotServiceImpl implements WaterCubeLotService {
         return new Rejection(pd.getId(), pd.getBatchNumber(), findAffectedCallNos(pd));
     }
 
+    @Autowired
+    private ProductionBatchIcLockService productionBatchIcLockService;
+
     /** Calls of the batch's plant that offered it and are not cancelled / withdrawn / rejected. */
     private List<String> findAffectedCallNos(ProductionDeclaration pd) {
-        if (isBlank(pd.getBatchNumber()) || isBlank(pd.getPlantId())) {
-            return Collections.emptyList();
-        }
-        List<String> callNos = inspectionCallRepository
-                .findCallNosByBatchNoAndPlant(pd.getBatchNumber().trim(), pd.getPlantId().trim());
-        if (callNos == null || callNos.isEmpty()) {
+        // Same batch matching as the Final IC lock: a batch number declared twice in a plant (different sleeper
+        // types / casting dates) only reports the calls of this declaration
+        List<String> callNos = productionBatchIcLockService.findCallNosForDeclaration(pd);
+        if (callNos.isEmpty()) {
             return Collections.emptyList();
         }
         Set<String> closed = rules.getClosedCallStatuses().stream()

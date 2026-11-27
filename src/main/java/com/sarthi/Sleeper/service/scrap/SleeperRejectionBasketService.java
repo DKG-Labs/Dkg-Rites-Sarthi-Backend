@@ -203,6 +203,8 @@ public class SleeperRejectionBasketService {
     /** One rejected sleeper. */
     private static final class Rejection {
         String plantId, vendorCode, batchNo, sleeperNo, key, sleeperType, stage, reason, addedBy, shift, location, reference;
+        /** user_master id of the IE who recorded the rejection (null when unknown) */
+        Long addedById;
         LocalDate date, castingDate;
         LocalDateTime createdAt;
 
@@ -315,6 +317,7 @@ public class SleeperRejectionBasketService {
             e.shift = str(r[15]);
             e.location = str(r[16]);
             e.addedBy = nameOr(str(r[18]), r[17]);
+            e.addedById = toLong(r[17]);
             e.createdAt = toDateTime(r[19]) != null ? toDateTime(r[19]) : toDateTime(r[6]);
             e.stage = STAGE_DEMOULDING;
             List<String> reasons = new ArrayList<>();
@@ -380,6 +383,7 @@ public class SleeperRejectionBasketService {
             e.date = inspected != null ? inspected : (e.createdAt != null ? e.createdAt.toLocalDate() : e.castingDate);
             e.shift = str(r[10]);
             e.addedBy = nameOr(str(r[12]), r[11]);
+            e.addedById = toLong(r[11]);
             String reason = str(r[2]);
             String type = str(r[3]);
             e.reason = reason != null ? reason : "Rejected at final inspection";
@@ -414,6 +418,7 @@ public class SleeperRejectionBasketService {
         for (Rejection e : mrFailures) unique.putIfAbsent(e.plantKey(), e);
         List<Rejection> list = new ArrayList<>(unique.values());
         list.sort(CHRONO);
+        hideUnmappedIes(list);
         if (!unidentified.isEmpty()) {
             log.warn("Sleeper scrap: skipped demoulding defect rows without a bench number (sleeper ID ambiguous): {}", unidentified);
         }
@@ -446,6 +451,7 @@ public class SleeperRejectionBasketService {
             LocalDate tested = toDate(r[10]);
             e.date = tested != null ? tested : (e.createdAt != null ? e.createdAt.toLocalDate() : e.castingDate);
             e.addedBy = nameOr(str(r[12]), r[11]);
+            e.addedById = toLong(r[11]);
             e.stage = STAGE_FINAL;
             e.reason = str(r[2]) != null ? str(r[2]) : "Rejected at final inspection";
             String module = Objects.toString(r[3], "");
@@ -495,6 +501,7 @@ public class SleeperRejectionBasketService {
                 e.createdAt = created;
                 e.shift = str(r[8]);
                 e.addedBy = nameOr(str(r[10]), r[9]);
+                e.addedById = toLong(r[9]);
                 e.stage = STAGE_TESTING;
                 e.reason = "MR test failed";
                 e.location = "MR Test";
@@ -1347,6 +1354,45 @@ public class SleeperRejectionBasketService {
         if (o == null) return null;
         String s = o.toString().trim();
         return s.isEmpty() ? null : s;
+    }
+
+    /**
+     * An IE's name is shown only on rejections of a plant the IE is mapped to (sleeper_poi_ie_mapping). A rejection
+     * recorded under an IE of another plant (e.g. a wrong user id saved by the IE screen) keeps its role only, so the
+     * name of an IE who never worked at the plant is not shown there.
+     */
+    private void hideUnmappedIes(List<Rejection> list) {
+        if (list.isEmpty()) return;
+        Set<String> mapped = new HashSet<>();
+        for (com.sarthi.Sleeper.entity.SleeperPoiIeMapping m : poiIeMappingRepo.findAll()) {
+            if (m.getIeUserId() != null && m.getPlantId() != null) {
+                mapped.add(mappingPlantKey(m.getPlantId()) + "|" + m.getIeUserId());
+            }
+        }
+        int hidden = 0;
+        for (Rejection e : list) {
+            if (e.addedById == null || e.plantId == null) continue;
+            if (!mapped.contains(mappingPlantKey(e.plantId) + "|" + e.addedById)) {
+                e.addedBy = null;
+                hidden++;
+            }
+        }
+        if (hidden > 0) log.debug("Sleeper scrap: hid the IE name on {} rejections recorded by an IE not mapped to the plant", hidden);
+    }
+
+    /** Plant id as matched against the IE mapping: no ':' prefix, no spaces, case-insensitive. */
+    private static String mappingPlantKey(String plantId) {
+        return plantId.replace(":", "").replaceAll("\\s+", "").toLowerCase();
+    }
+
+    private static Long toLong(Object o) {
+        if (o instanceof Number n) return n.longValue();
+        if (o == null) return null;
+        try {
+            return Long.valueOf(o.toString().trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private static String nameOr(String name, Object userId) {

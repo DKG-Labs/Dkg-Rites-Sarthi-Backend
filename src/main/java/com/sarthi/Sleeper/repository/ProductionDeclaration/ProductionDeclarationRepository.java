@@ -2011,6 +2011,23 @@ ORDER BY
     """, nativeQuery = true)
     List<Object[]> getPoDetailsByPlant();
 
+    /** Sleeper types of one production declaration, from its stress bench groups and long-line gangs. */
+    @Query(value = """
+    SELECT DISTINCT TRIM(t.sleeper_type)
+    FROM (
+        SELECT bg.sleeper_type
+        FROM production_bench_group bg
+        JOIN production_stress_chamber ch ON ch.id = bg.chamber_id
+        WHERE ch.declaration_id = :pdId
+        UNION ALL
+        SELECT g.sleeper_type
+        FROM production_longline_gang g
+        WHERE g.declaration_id = :pdId
+    ) t
+    WHERE t.sleeper_type IS NOT NULL AND TRIM(t.sleeper_type) <> ''
+    """, nativeQuery = true)
+    List<String> findSleeperTypesByDeclarationId(@Param("pdId") Long pdId);
+
     @Query(value = """
 SELECT
     vp.zonal_railway,

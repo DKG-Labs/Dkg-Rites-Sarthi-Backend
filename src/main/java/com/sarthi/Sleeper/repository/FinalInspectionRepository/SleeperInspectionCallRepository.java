@@ -63,6 +63,20 @@ WHERE UPPER(TRIM(b.batchNo)) = UPPER(TRIM(:batchNo))
 """)
     List<String> findCallNosByBatchNoAndPlant(@Param("batchNo") String batchNo, @Param("plantId") String plantId);
 
+    /**
+     * Same calls as findCallNosByBatchNoAndPlant, with the call's sleeper type and the batch's cast date, so a batch
+     * number declared twice in a plant (different sleeper types / casting dates) can be told apart.
+     * Row: callNo, call sleeper type, batch cast date (text), call created at.
+     */
+    @Query("""
+SELECT c.callNo, c.sleeperType, b.castDate, c.createdAt
+FROM SleeperInspectionCall c
+JOIN c.batchesSelected b
+WHERE UPPER(TRIM(b.batchNo)) = UPPER(TRIM(:batchNo))
+  AND (c.plantId = :plantId OR REPLACE(COALESCE(c.plantId, ''), ':', '') = REPLACE(:plantId, ':', ''))
+""")
+    List<Object[]> findCallBatchesByBatchNoAndPlant(@Param("batchNo") String batchNo, @Param("plantId") String plantId);
+
     @Query("""
 SELECT DISTINCT s.sleeperId
 FROM SleeperInspectionCallBatch b
