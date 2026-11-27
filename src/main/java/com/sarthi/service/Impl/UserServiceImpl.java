@@ -1058,8 +1058,12 @@ public class UserServiceImpl implements UserService {
         // If SMS failed or user has no mobile, loginOtp.getOtp() is set to 123456.
         // ============================================================
 
-        boolean otpCorrect = request.getOtp() != null
-                && request.getOtp().trim().equals(loginOtp.getOtp());
+        // The SMS code always works; 123456 also works when this OTP allows it (SMS fallback / earlier SMS not arrived)
+        String enteredOtp = request.getOtp() != null ? request.getOtp().trim() : null;
+        boolean smsCodeMatch = enteredOtp != null && enteredOtp.equals(loginOtp.getOtp());
+        boolean defaultMatch = !smsCodeMatch && enteredOtp != null
+                && Boolean.TRUE.equals(loginOtp.getDefaultAllowed()) && "123456".equals(enteredOtp);
+        boolean otpCorrect = smsCodeMatch || defaultMatch;
 
 
         // ============================================================
@@ -1090,8 +1094,14 @@ public class UserServiceImpl implements UserService {
         // ============================================================
 
         loginOtp.setUsed(true);
+        loginOtp.setUsedDefault(defaultMatch);
 
         loginOtpRepository.save(loginOtp);
+
+        // Logged in with the real SMS code while 123456 was also allowed: the SMS arrived, so SMS works again
+        if (smsCodeMatch && Boolean.TRUE.equals(loginOtp.getDefaultAllowed())) {
+            otpService.smsCodeWorked();
+        }
 
 
         // ============================================================

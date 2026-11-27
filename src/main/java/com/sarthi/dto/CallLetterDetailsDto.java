@@ -54,7 +54,7 @@ public class CallLetterDetailsDto {
     // ---- Enriched PDF fields ----
     private String rawMaterialQtyPassed; // Raw Material Qty Already Passed for this PO Sr. No.
     private String finalAcceptedQty; // Final Accepted Qty of this PO Sr. No.
-    private Integer poQuantity; // Total PO Quantity
+    private java.math.BigDecimal poQuantity; // Total PO Quantity (exact, keeps decimals e.g. 20096.06 Mtr)
     private String poValue; // Total PO Value
     private String remarks; // Remarks from inspection call
 
