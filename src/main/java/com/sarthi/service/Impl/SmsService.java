@@ -62,80 +62,62 @@ public class SmsService {
         return reply;
     }
 
-    public void sendOtp(String mobileNumber, String otp) {
+    /** OTP calls only: give up quickly when XpertSMS does not answer, so the login can fall back to 123456. */
+    private final RestTemplate otpRestTemplate = createOtpRestTemplate();
 
-        /*
-         * OTP SMS body
-         *
-         * IMPORTANT:
-         * The template should match the registered SMS template.
-         */
+    private static RestTemplate createOtpRestTemplate() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory f =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        f.setConnectTimeout(5_000);
+        f.setReadTimeout(10_000);
+        return new RestTemplate(f);
+    }
 
+    /**
+     * Sends the login OTP. Returns XpertSMS's message id when it accepted the message ("status":100 = submitted).
+     * Throws on timeout, HTTP error or any other status, so the caller falls back to the default OTP.
+     * Note: "submitted" is not "delivered" - delivery is only known from XpertSMS's delivery report.
+     */
+    public String sendOtp(String mobileNumber, String otp) {
+
+        // Must match the registered DLT template exactly
         String smsBody =
                 otp +
                         " is the One Time Password for verification of your login with RITES LTD- QA Division. " +
                         "Valid for 10 minutes. Please do not share with anyone. -RITES/QA";
 
-        /*
-         * Build XpertSMS URL
-         */
-        UriComponentsBuilder builder =
-                UriComponentsBuilder
-                        .fromUriString(smsApiUrl)
-                        .queryParam("key", smsApiKey)
-                        .queryParam("from", sender)
-                        .queryParam("to", mobileNumber)
-                        .queryParam("body", smsBody)
+        java.net.URI uri = UriComponentsBuilder
+                .fromUriString(smsApiUrl)
+                .queryParam("key", smsApiKey)
+                .queryParam("from", sender)
+                .queryParam("to", mobileNumber)
+                .queryParam("body", smsBody)
+                .queryParam("templateid", templateId)
+                .queryParam("entityid", entityId)
+                .build()
+                .toUri();
 
-                        // NEW
-                        .queryParam("templateid", templateId)
-
-                        // NEW
-                        .queryParam("entityid", entityId);
-
+        String reply;
         try {
-            java.net.URI uri = builder.build().toUri();
-            ResponseEntity<String> response =
-                    restTemplate.getForEntity(
-                            uri,
-                            String.class
-                    );
-
-            /*
-             * Temporary debugging
-             *
-             * Don't print API key or OTP.
-             */
-
-            System.out.println(
-                    "XPERT SMS STATUS: "
-                            + response.getStatusCode()
-            );
-
-            System.out.println(
-                    "XPERT SMS RESPONSE: "
-                            + response.getBody()
-            );
-
+            ResponseEntity<String> response = otpRestTemplate.getForEntity(uri, String.class);
             if (!response.getStatusCode().is2xxSuccessful()) {
-
-                throw new RuntimeException(
-                        "XpertSMS failed: "
-                                + response.getStatusCode()
-                );
+                throw new RuntimeException("XpertSMS HTTP " + response.getStatusCode());
             }
-
+            reply = response.getBody() == null ? "" : response.getBody().trim();
         } catch (Exception e) {
-
-            System.out.println(
-                    "XPERT SMS ERROR: "
-                            + e.getMessage()
-            );
-
-            throw new RuntimeException(
-                    "Unable to send OTP",
-                    e
-            );
+            System.out.println("XPERT SMS OTP ERROR: " + e.getMessage());
+            throw new RuntimeException("Unable to send OTP", e);
         }
+
+        // XpertSMS answers HTTP 200 even when it refuses a message; only "status":100 means it was accepted
+        java.util.regex.Matcher status = java.util.regex.Pattern.compile("\"status\"\\s*:\\s*\"?(\\d+)").matcher(reply);
+        if (!status.find() || !"100".equals(status.group(1))) {
+            System.out.println("XPERT SMS OTP REJECTED: " + reply);
+            throw new RuntimeException("XpertSMS did not accept the OTP: " + reply);
+        }
+        java.util.regex.Matcher id = java.util.regex.Pattern.compile("\"messageid\"\\s*:\\s*\"([^\"]*)\"").matcher(reply);
+        String messageId = id.find() ? id.group(1) : "";
+        System.out.println("XPERT SMS OTP SUBMITTED: messageid=" + messageId);
+        return messageId;
     }
 }

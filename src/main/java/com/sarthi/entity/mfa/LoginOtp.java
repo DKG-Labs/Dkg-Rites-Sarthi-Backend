@@ -37,5 +37,13 @@ public class LoginOtp {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    // SMS was sent but 123456 is also accepted (SMS outage fallback, or the user's previous SMS OTP never arrived)
+    @Column(name = "default_allowed")
+    private Boolean defaultAllowed = false;
+
+    // Login used 123456 although a real SMS OTP was sent (tells SMS-not-reaching from SMS-working)
+    @Column(name = "used_default")
+    private Boolean usedDefault = false;
+
 
 }
