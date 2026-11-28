@@ -769,12 +769,13 @@ ORDER BY ies.employee_code
 
         TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
-                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%'
+                 OR (LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('rmt','r.m.t','r.m.t.','mtr','mtr.','mtrs','mtrs.','mts','mts.','running metre','running meter','running metres','running meters')
+                     AND (UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'))),
                 (
                     SELECT SUM(COALESCE(sfr_prev.offered_sets_quantity, 0))
                     FROM sleeper_final_result sfr_prev
@@ -797,12 +798,13 @@ ORDER BY ies.employee_code
 
         TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
-                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%'
+                 OR (LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('rmt','r.m.t','r.m.t.','mtr','mtr.','mtrs','mtrs.','mts','mts.','running metre','running meter','running metres','running meters')
+                     AND (UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'))),
                 (
                     SELECT SUM(COALESCE(sfr_prev.accepted_sets_quantity, 0))
                     FROM sleeper_final_result sfr_prev
@@ -825,12 +827,13 @@ ORDER BY ies.employee_code
 
         TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
-                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%'
+                 OR (LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('rmt','r.m.t','r.m.t.','mtr','mtr.','mtrs','mtrs.','mts','mts.','running metre','running meter','running metres','running meters')
+                     AND (UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'))),
                 (SELECT sfr.offered_sets_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
                 (SELECT sfr.total_offered_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
             ),
@@ -841,12 +844,13 @@ ORDER BY ies.employee_code
 
         TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
-                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%'
+                 OR (LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('rmt','r.m.t','r.m.t.','mtr','mtr.','mtrs','mtrs.','mts','mts.','running metre','running meter','running metres','running meters')
+                     AND (UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'))),
                 (SELECT sfr.accepted_sets_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
                 (SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
             ),
@@ -856,12 +860,13 @@ ORDER BY ies.employee_code
 
         TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(COALESCE(
             IF(
-                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%'
+                 OR (LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('rmt','r.m.t','r.m.t.','mtr','mtr.','mtrs','mtrs.','mts','mts.','running metre','running meter','running metres','running meters')
+                     AND (UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
                  OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
-                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                 OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'))),
                 (SELECT sfr.rejected_sets_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
                 (SELECT sfr.total_rejected FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
             ),
@@ -874,12 +879,13 @@ ORDER BY ies.employee_code
             -
             COALESCE(
                 IF(
-                    (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
-                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                    (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%'
+                     OR (LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('rmt','r.m.t','r.m.t.','mtr','mtr.','mtrs','mtrs.','mts','mts.','running metre','running meter','running metres','running meters')
+                         AND (UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
                      OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
                      OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
                      OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
-                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'))),
                     (
                         SELECT SUM(COALESCE(sfr_prev.accepted_sets_quantity, 0))
                         FROM sleeper_final_result sfr_prev
@@ -902,12 +908,13 @@ ORDER BY ies.employee_code
             -
             COALESCE(
                 IF(
-                    (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
-                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+                    (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%'
+                     OR (LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('rmt','r.m.t','r.m.t.','mtr','mtr.','mtrs','mtrs.','mts','mts.','running metre','running meter','running metres','running meters')
+                         AND (UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
                      OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
                      OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
                      OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
-                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+                     OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'))),
                     (SELECT sfr.accepted_sets_quantity FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1),
                     (SELECT sfr.total_accepted FROM sleeper_final_result sfr WHERE sfr.call_number COLLATE utf8mb4_unicode_ci = sic.call_no COLLATE utf8mb4_unicode_ci LIMIT 1)
                 ),
@@ -917,14 +924,17 @@ ORDER BY ies.employee_code
         )) AS DECIMAL(18,3)))) AS qtyStillDue,
 
         IF(
-            (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%' 
-             OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
+            (UPPER(TRIM(COALESCE(pi.uom, ''))) LIKE '%SET%'
+             OR (LOWER(TRIM(COALESCE(pi.uom, ''))) NOT IN ('rmt','r.m.t','r.m.t.','mtr','mtr.','mtrs','mtrs.','mts','mts.','running metre','running meter','running metres','running meters')
+                 AND (UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%PNC%'
              OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%TURNOUT%'
              OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4865%'
              OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-9790%'
-             OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'),
+             OR UPPER(TRIM(COALESCE(pi.item_desc, sic.sleeper_type, ''))) LIKE '%RT-4218%'))),
             'SETS.',
-            'NOS.'
+            IF(LOWER(TRIM(COALESCE(pi.uom, ''))) IN ('rmt','r.m.t','r.m.t.','mtr','mtr.','mtrs','mtrs.','mts','mts.','running metre','running meter','running metres','running meters'),
+               CONCAT(UPPER(TRIM(pi.uom)), IF(TRIM(pi.uom) LIKE '%.', '', '.')),
+               'NOS.')
         ) AS unit,
 
         pi.uom AS uom,
